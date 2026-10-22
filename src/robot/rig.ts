@@ -53,6 +53,7 @@ const eye = (o: Partial<EyeRig> = {}): EyeRig => ({
 
 export const WHITE: RGB = [255, 236, 226];
 const RED: RGB = [255, 38, 24];
+const PINK: RGB = [255, 150, 140];
 
 /* `left` and `right` are the robot's own, so they appear swapped on screen */
 const face = (o: Partial<Omit<FaceRig, 'left' | 'right'>> & { eyes?: Partial<EyeRig>; left?: Partial<EyeRig>; right?: Partial<EyeRig> } = {}): FaceRig => {
@@ -76,21 +77,32 @@ const face = (o: Partial<Omit<FaceRig, 'left' | 'right'>> & { eyes?: Partial<Eye
  */
 export const EXPRESSIONS: Record<RobotExpression, FaceRig> = {
   neutral: face(),
-  curious: face({ eyes: { size: 1.06, lidTop: 0 }, left: { lidTop: 0.14, lidAngle: -0.12 }, roll: 0.16, yaw: -0.08, jawSmile: 0.1 }),
-  happy: face({ eyes: { lidTop: 0, size: 1.03 }, jawSmile: 1, jawOpen: 0.36, pitch: 0.04 }),
-  joyful: face({ eyes: { lidTop: 0, size: 1.06, glow: 1.1 }, jawSmile: 1, jawOpen: 0.8, pitch: 0.08 }),
-  sad: face({ eyes: { lidTop: 0.36, lidAngle: -0.42, gazeY: 0.55, glow: 0.8 }, jawSmile: -0.55, jawOpen: 0.04, pitch: -0.16 }),
-  sheepish: face({ eyes: { lidTop: 0.3, lidAngle: -0.3, gazeX: -0.35, gazeY: 0.35 }, jawSmile: -0.2, jawOpen: 0.1, roll: -0.08, pitch: -0.08 }),
-  sleepy: face({ eyes: { lidTop: 0.55, glow: 0.75, gazeY: 0.3 }, jawSmile: 0, jawOpen: 0.04, pitch: -0.06 }),
-  suspicious: face({ eyes: { lidTop: 0.4, lidBottom: 0.24, lidAngle: 0.12, gazeX: 0.45 }, left: { lidTop: 0.5 }, jawSmile: -0.1, jawOpen: 0.04, yaw: 0.06 }),
-  content: face({ eyes: { lidTop: 0.38, lidBottom: 0.16, lidCurve: 0.6, glow: 0.9 }, jawSmile: 0.5, jawOpen: 0.06 }),
-  surprised: face({ eyes: { lidTop: 0, size: 1.14, glow: 1.25 }, jawOpen: 0.55, jawSmile: 0, pitch: 0.06 }),
-  determined: face({ eyes: { lidTop: 0.36, lidBottom: 0.2, lidAngle: 0.34 }, jawSmile: -0.15, jawOpen: 0.03, pitch: -0.05 }),
-  angry: face({ eyes: { lidTop: 0.36, lidBottom: 0.1, lidAngle: 0.5, pupil: 0.42, glow: 1.15 }, color: RED, jawSmile: -0.3, jawOpen: 0.02, pitch: -0.06 }),
-  attack: face({ eyes: { lidTop: 0.34, lidBottom: 0.24, lidAngle: 0.38, pupil: 0.6, glow: 1.3 }, color: RED, jawOpen: 0.4, jawSmile: 0.2, pitch: -0.08 }),
-  defense: face({ eyes: { lidTop: 0.08, lidBottom: 0.04, lidAngle: 0.1, pupil: 1, glow: 1.2 }, color: RED, jawSmile: -0.2, jawOpen: 0.02 }),
-  peaceful: face({ eyes: { lidTop: 0.5, lidBottom: 0.12, lidCurve: 0.8, glow: 0.85, gazeY: -0.2 }, jawSmile: 0.6, jawOpen: 0.05, pitch: 0.1 }),
-  asleep: face({ eyes: { lidTop: 0.56, lidBottom: 0.46, glow: 0.2 }, jawSmile: 0, jawOpen: 0, pitch: -0.22 }),
+  curious: face({ eyes: { size: 1.06, lidTop: 0, gazeY: -0.25 }, left: { lidTop: 0.14, lidAngle: -0.12 }, roll: 0.16, yaw: -0.08, jawSmile: 0.1, jawOpen: 0 }),
+  /* 08720: smiling eyes, the lower lids bowed up like cheeks, the head cocked */
+  happy: face({ eyes: { lidTop: 0.28, lidBottom: 0.3, lidCurve: 0.5 }, jawSmile: 1, jawOpen: 0.2, roll: 0.14, pitch: -0.05 }),
+  joyful: face({ eyes: { lidTop: 0, size: 1, glow: 1.1 }, jawSmile: 1, jawOpen: 0.8, pitch: 0.1 }),
+  sad: face({ eyes: { lidTop: 0.36, lidBottom: 0.1, lidAngle: -0.42, gazeY: 0.55, glow: 0.7, size: 0.9 }, jawSmile: -0.55, jawOpen: 0.04, pitch: -0.16, roll: 0.06 }),
+  /* "Mmm": looking away and down, a small smile */
+  sheepish: face({ eyes: { lidTop: 0.22, lidBottom: 0.2, lidCurve: 0.45, lidAngle: -0.22, size: 0.88, gazeX: -0.7, gazeY: 0.5 }, jawSmile: 0.3, jawOpen: 0.04, roll: -0.12, pitch: -0.1 }),
+  sleepy: face({ eyes: { lidTop: 0.6, lidBottom: 0.12, lidAngle: -0.08, glow: 0.6, gazeY: 0.4 }, jawSmile: 0, jawOpen: 0.03, pitch: -0.14, roll: 0.06 }),
+  /* a side-eye: one lid lower, the glow at the corner, the head turned against it */
+  suspicious: face({ eyes: { lidBottom: 0.26, lidAngle: 0.2, size: 0.85, gazeX: 0.9 }, left: { lidTop: 0.56 }, right: { lidTop: 0.3 }, jawSmile: -0.1, jawOpen: 0.02, yaw: -0.12, roll: -0.05 }),
+  content: face({ eyes: { lidTop: 0.38, lidBottom: 0.22, lidCurve: 1, glow: 0.8 }, jawSmile: 0.5, jawOpen: 0.06 }),
+  /* an "O", not a grin */
+  surprised: face({ eyes: { lidTop: 0, size: 1.14, glow: 1.3 }, jawOpen: 0.4, jawSmile: -0.15, pitch: 0.1 }),
+  /* "No. Stop. Why?": wide, worried, mouth pulled down */
+  afraid: face({ eyes: { size: 1.1, lidTop: 0.12, lidAngle: -0.35 }, jawOpen: 0.3, jawSmile: -0.4, pitch: 0.06 }),
+  /* 09752: a narrow, level slit */
+  determined: face({ eyes: { lidTop: 0.42, lidBottom: 0.32, lidAngle: 0.18, gazeY: -0.15 }, jawSmile: -0.05, jawOpen: 0.02, pitch: -0.1 }),
+  /* 06828: the red eye, wide open, the iris part way in */
+  angry: face({ eyes: { pupil: 0.35, glow: 1.3 }, color: RED, jawSmile: 0, jawOpen: 0.02, pitch: -0.06 }),
+  /* 09224–09230: pink slits under heavy angled lids, a grimace; no iris */
+  attack: face({ eyes: { lidTop: 0.22, lidAngle: 0.4, glow: 1.15 }, color: PINK, jawOpen: 0.3, jawSmile: -0.25, pitch: -0.12 }),
+  /* 06832: wide open, the iris down to a small opening */
+  defense: face({ eyes: { pupil: 0.82, glow: 1.4 }, color: RED, jawSmile: 0, jawOpen: 0.02 }),
+  /* 09928: the eyes half closed, looking up, the head tipped back */
+  peaceful: face({ eyes: { lidTop: 0.36, lidBottom: 0.26, lidCurve: 0.3, glow: 0.95, gazeY: -0.35 }, jawSmile: 0.3, jawOpen: 0, pitch: 0.22, roll: 0.1 }),
+  asleep: face({ eyes: { lidTop: 0.56, lidBottom: 0.46, glow: 0.1 }, jawSmile: 0, jawOpen: 0, pitch: -0.22, roll: 0.1 }),
 };
 
 export const EXPRESSION_NAMES = Object.keys(EXPRESSIONS) as RobotExpression[];
@@ -199,29 +211,30 @@ const PINKISH: RGB = [255, 160, 150];
 
 export const SEQUENCES = {
   /* 9920–9929: the lids meet and part again, quick */
-  blink: [[0, null], [0.07, { eyes: SHUT }], [0.11, { eyes: SHUT }], [0.24, null]],
-  /* 6825–6834: the white eye flushes pink, turns to a red pentagon, then the iris closes in */
+  blink: [[0, null], [0.07, { eyes: SHUT }], [0.1, { eyes: SHUT }], [0.2, null]],
+  /* 6825–6834: the white eye flushes pink, turns to a red pentagon, then the iris closes in (about 10 frames) */
   defenseOn: [
     [0, null],
-    [0.08, { eyes: { shape: 0.6, pupil: 0, glow: 1.15 }, color: PINKISH }],
-    [0.16, { eyes: { shape: 1, pupil: 0, glow: 1.25 }, color: RED }],
-    [0.3, { eyes: { shape: 1, pupil: 0.35, glow: 1.2 }, color: RED }],
-    [0.6, null],
+    [0.06, { eyes: { shape: 0.6, pupil: 0, glow: 1.15 }, color: PINKISH }],
+    [0.12, { eyes: { shape: 1, pupil: 0, glow: 1.25 }, color: RED }],
+    [0.22, { eyes: { shape: 1, pupil: 0.3, glow: 1.3 }, color: RED }],
+    [0.42, null],
   ],
-  /* 8309–8312: the iris opens on a red pentagon that pales through pink back to white */
+  /* 8309–8312: four frames; the iris opens on a red pentagon that pales to a small pink one, then the white eye */
   defenseOff: [
     [0, null],
-    [0.16, { eyes: { shape: 1, pupil: 0.25 }, color: RED }],
-    [0.26, { eyes: { shape: 1, pupil: 0 }, color: PINKISH }],
-    [0.4, { eyes: { shape: 0.4, pupil: 0 } }],
-    [0.55, null],
+    [0.05, { eyes: { shape: 1, pupil: 0.3 }, color: RED }],
+    [0.1, { eyes: { shape: 1, pupil: 0, size: 0.85 }, color: PINKISH }],
+    [0.17, { eyes: { shape: 0.3, pupil: 0 } }],
+    [0.25, null],
   ],
-  /* 10550–10562: the seam between the shut lids opens to slits, the glow comes up, the eyes open */
+  /* 10550–10562: a long dark hold, the seam lights, then the eyes open in two frames and the glow catches up */
   wake: [
-    [0, { eyes: { ...SHUT, glow: 0.15 } }],
-    [0.35, { eyes: { lidTop: 0.42, lidBottom: 0.32, glow: 0.45 } }],
-    [0.6, { eyes: { lidTop: 0.3, lidBottom: 0.18, glow: 0.8 } }],
-    [1, null],
+    [0, { eyes: { ...SHUT, glow: 0.1 } }],
+    [0.45, { eyes: { ...SHUT, glow: 0.6 } }],
+    [0.55, { eyes: { lidTop: 0.15, lidBottom: 0.1, glow: 0.7 } }],
+    [0.65, { eyes: { lidTop: 0, lidBottom: 0, glow: 0.8 } }],
+    [0.9, null],
   ],
 } satisfies Record<string, Sequence>;
 
@@ -253,5 +266,5 @@ export function applySequence(seq: Sequence, t: number, face: FaceRig) {
   }
 }
 
-/** Whether a face is one of the red ones, which the eyes turn to and from by a sequence. */
+/** Whether a face is one of the red ones (attack's is pink), which the eyes turn to and from by a sequence. */
 export const isRed = (name: RobotExpression | undefined) => name === 'angry' || name === 'attack' || name === 'defense';

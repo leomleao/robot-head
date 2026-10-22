@@ -146,8 +146,8 @@ interface Projected {
 /* the colour of every inside surface, and of the mouth's dark */
 const INSIDE = '#0c090a';
 /* the iris's blades, and the lines between them */
-const IRIS = '#1c1517';
-const IRIS_LINE = '#3d3335';
+const IRIS = '#231b1d';
+const IRIS_LINE = '#5a4b4e';
 /* the outline's colour */
 const INK = '#140f12';
 
@@ -556,16 +556,20 @@ export class RobotRenderer {
    */
   private drawLids(ctx: CanvasRenderingContext2D, e: EyeRig, side: number, R: number, r: number, pal: Palette, glow: RGB) {
     const span = R * 1.2;
-    const yt = -r * 1.04 + Math.max(0, e.lidTop) * 2 * r * 1.04;
-    const yb = r * 1.04 - Math.max(0, e.lidBottom) * 2 * r * 1.04;
+    /* the iris and the lids are never used together: as the iris comes in, the lids draw back fully (06828–06834, 09231–09232) */
+    const back = 1 - smooth(0.02, 0.2, e.pupil);
+    const lidTop = Math.max(0, e.lidTop) * back, lidBottom = Math.max(0, e.lidBottom) * back;
+    const lidAngle = e.lidAngle * back, lidCurve = e.lidCurve * back;
+    const yt = -r * 1.04 + lidTop * 2 * r * 1.04;
+    const yb = r * 1.04 - lidBottom * 2 * r * 1.04;
     /* lids part way down are the socket's dark; shut, they are metal shutters with a seam where they meet */
-    const shut = smooth(0.82, 1, e.lidTop + e.lidBottom);
+    const shut = smooth(0.82, 1, lidTop + lidBottom);
     const c = radiance(pal.dark, 0, -0.2, 1, this.col);
     const k = 1.1;
     ctx.fillStyle = shut > 0.001 ? css([0.0019 + (c[0] * k - 0.0019) * shut, 0.0016 + (c[1] * k - 0.0016) * shut, 0.0013 + (c[2] * k - 0.0013) * shut]) : '#060504';
-    if (e.lidTop > 0.001 || Math.abs(e.lidAngle) > 0.001) {
+    if (lidTop > 0.001 || Math.abs(lidAngle) > 0.001) {
       /* inward is toward the crest: −x for the eye on the viewer's right */
-      const slope = Math.tan(Math.max(-0.9, Math.min(0.9, e.lidAngle))) * -side;
+      const slope = Math.tan(Math.max(-0.9, Math.min(0.9, lidAngle))) * -side;
       ctx.beginPath();
       ctx.moveTo(-span, -span);
       ctx.lineTo(span, -span);
@@ -574,8 +578,8 @@ export class RobotRenderer {
       ctx.closePath();
       ctx.fill();
     }
-    if (e.lidBottom > 0.001 || e.lidCurve > 0.001) {
-      const bow = Math.max(0, e.lidCurve) * r * 0.5;
+    if (lidBottom > 0.001 || lidCurve > 0.001) {
+      const bow = Math.max(0, lidCurve) * r * 0.5;
       ctx.beginPath();
       ctx.moveTo(-span, span);
       ctx.lineTo(span, span);

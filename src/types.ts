@@ -24,6 +24,7 @@ export type RobotExpression =
   | 'suspicious'
   | 'content'
   | 'surprised'
+  | 'afraid'
   | 'determined'
   | 'angry'
   | 'attack'
@@ -45,7 +46,7 @@ export interface RobotHeadProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'c
   size?: number;
   /** Colour of the shell. Default a weathered gunmetal. */
   color?: string;
-  /** Colour of the eyes' glow. Default a warm white. Angry, attack and defense turn it red. */
+  /** Colour of the eyes' glow. Default a warm white. Angry and defense turn it red, attack pink. */
   eyeColor?: string;
   /** Multiplier on every animation's speed. Default `1`. */
   speed?: number;

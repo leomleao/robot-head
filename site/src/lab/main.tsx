@@ -192,6 +192,7 @@ const SHEET: Array<{ expr: RobotExpression; ref: string; crop: [number, number, 
   { expr: 'suspicious', ref: '05-squint-half-lid/05252.jpg', crop: [0.0, 0.1, 0.6, 0.9] },
   { expr: 'content', ref: '05-squint-half-lid/04496.jpg', crop: [0.3, 0, 0.5, 0.75] },
   { expr: 'surprised', ref: '09-eye-closeups/04796.jpg', crop: [0.3, 0, 0.6, 1] },
+  { expr: 'afraid', ref: '04-sad/06808.jpg', crop: [0.45, 0, 0.55, 1] },
   { expr: 'determined', ref: '07-angry-determined/09752.jpg', crop: [0.25, 0.1, 0.45, 0.9] },
   { expr: 'angry', ref: '08-defense-red/06828.jpg', crop: [0.3, 0, 0.5, 0.9] },
   { expr: 'attack', ref: '07-angry-determined/09224.jpg', crop: [0.25, 0, 0.5, 1] },
@@ -217,7 +218,7 @@ function Sheet() {
     <section>
       <h2>G2 · Expressions</h2>
       <div className="sheet">
-        {SHEET.slice(from, from + 8).map((x) => (
+        {SHEET.slice(from, from + 9).map((x) => (
           <figure key={x.expr} className="pair">
             <Still pose={{}} face={targetFace('idle', x.expr, [255, 236, 226])} size={150} />
             <RefCrop src={x.ref} crop={x.crop} h={150} />

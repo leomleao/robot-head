@@ -123,7 +123,7 @@ export function targetFace(state: RobotHeadState, expression: RobotExpression | 
     f.yaw = src.yaw; f.pitch = src.pitch; f.roll = src.roll;
     f.color[0] = src.color[0]; f.color[1] = src.color[1]; f.color[2] = src.color[2];
   }
-  if (name !== 'defense' && name !== 'attack' && name !== 'angry') {
+  if (!isRed(name)) {
     f.color[0] = eye[0]; f.color[1] = eye[1]; f.color[2] = eye[2];
   }
   return f;
@@ -177,7 +177,10 @@ export class RobotSim {
     }
     /* the eyes turn red, and back, by the film's steps; waking opens them from a seam */
     const was = this.expression ?? STATE_FACE[this.state], now = expression ?? STATE_FACE[state];
-    if (isRed(was) !== isRed(now)) this.play(isRed(now) ? 'defenseOn' : 'defenseOff');
+    /* the iris faces (angry, defense) come and go by the film's steps; attack's pink just eases in */
+    const iris = (n: RobotExpression) => n === 'angry' || n === 'defense';
+    if (iris(now) && !isRed(was)) this.play('defenseOn');
+    else if (iris(was) && !isRed(now)) this.play('defenseOff');
     else if (was === 'asleep' && now !== 'asleep') this.play('wake');
     this.state = state;
     this.expression = expression;
