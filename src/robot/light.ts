@@ -1,8 +1,7 @@
-/* A small physically-minded lighting model for the shell, evaluated per
-   quad: a studio key from the upper left, a cool fill, a sky dome, a
-   softbox overhead and the key's own window caught as glossy
-   reflections (a clear coat's Fresnel), a back light that rims the
-   silhouette, and a filmic tone curve. All in linear light. */
+/* A small physically-minded lighting model, evaluated per quad: a key
+   from the upper left, a cool fill, a sky dome, a softbox overhead and
+   the key's own window caught as reflections (Fresnel), a back light
+   that rims the silhouette, and a filmic tone curve. All in linear light. */
 
 import type { V3 } from './geometry';
 
@@ -17,6 +16,8 @@ export interface Material {
   spec: number;
   shininess: number;
   rim: number;
+  /* how much of the studio shows in its reflections, 1 by default */
+  sheen?: number;
 }
 
 const n3 = (x: number, y: number, z: number): V3 => {
@@ -66,7 +67,7 @@ export function radiance(m: Material, nx: number, ny: number, nz: number, out: V
   const fres = m.f0 + (1 - m.f0) * Math.pow(1 - ndv, 5);
   /* reflection of the view ray */
   const rx = 2 * ndv * nx, ry = 2 * ndv * ny, rz = 2 * ndv * nz - 1;
-  const env = environment(rx, ry, rz) * fres;
+  const env = environment(rx, ry, rz) * fres * (m.sheen ?? 1);
   const spec = m.spec * Math.pow(Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]), m.shininess);
   const back = Math.max(0, nx * BACK[0] + ny * BACK[1] + nz * BACK[2]);
   const rim = m.rim * back * back * Math.pow(1 - ndv, 1.6);

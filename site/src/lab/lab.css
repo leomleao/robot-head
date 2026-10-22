@@ -1,0 +1,17 @@
+:root { color-scheme: dark; --bg: #6f6a78; --text: #f2f2f3; --soft: #d5d3db; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, sans-serif; }
+main { padding: 24px 16px 80px; max-width: 1500px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 16px; }
+h2 { font-size: 15px; margin: 8px 0 12px; color: var(--soft); }
+.pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: 12px 20px; }
+figure { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+figure img { width: 100%; border-radius: 6px; }
+figcaption { grid-column: 1 / -1; color: var(--soft); }
+.still { position: relative; display: block; flex: none; }
+.still canvas { position: absolute; }
+.rig, .row { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
+.controls { display: grid; gap: 4px; min-width: 280px; }
+.controls label { display: grid; grid-template-columns: 80px 1fr 44px; gap: 8px; align-items: center; }
+.controls select { grid-column: 2 / 4; }
+hr { border: 0; border-top: 1px solid rgba(255,255,255,.15); width: 100%; }

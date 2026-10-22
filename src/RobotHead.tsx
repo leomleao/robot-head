@@ -1,27 +1,14 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, type MouseEvent } from 'react';
-import type { RobotHeadProps, RobotHeadShape, RobotHeadState } from './types';
-import { getShape } from './tv/geometry';
-import { RobotSim, restPose } from './tv/sim';
-import { RobotRenderer, frameFor, type Palette } from './tv/render';
-import { linear } from './tv/light';
+import type { RobotExpression, RobotHeadProps, RobotHeadState } from './types';
+import { RobotRenderer, REST_POSE, frameFor, palette } from './robot/render';
+import { EXPRESSIONS, EXPRESSION_NAMES, WHITE, type RGB } from './robot/rig';
+import { RobotSim, targetFace } from './robot/sim';
 import { parseColor } from './color';
 import { subscribe, pointer } from './ticker';
 
-export const robotHeadShapes: RobotHeadShape[] = ['rectangle', 'square', 'circle', 'hexagon'];
-
 export const robotHeadStates: RobotHeadState[] = ['idle', 'thinking', 'searching', 'listening', 'speaking', 'working', 'happy', 'error', 'sleeping'];
 
-const labels: Record<RobotHeadState, string> = {
-  idle: 'idle',
-  thinking: 'thinking',
-  searching: 'searching',
-  listening: 'listening',
-  speaking: 'speaking',
-  working: 'working',
-  happy: 'happy',
-  error: 'error',
-  sleeping: 'sleeping',
-};
+export const robotExpressions: RobotExpression[] = EXPRESSION_NAMES;
 
 function hashSeed(id: string): number {
   let h = 2166136261;
@@ -32,39 +19,27 @@ function hashSeed(id: string): number {
 const reducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function palette(color: string, trim: string, screen: string): Palette {
-  const shell = parseColor(color) ?? [48, 80, 172];
-  const metal = parseColor(trim) ?? [150, 168, 200];
-  const led = parseColor(screen) ?? [232, 242, 255];
-  return {
-    shell: { albedo: linear(shell), f0: 0.05, metal: 0.15, spec: 0.55, shininess: 70, rim: 0.9 },
-    trim: { albedo: linear(metal), f0: 0.2, metal: 0.65, spec: 0.8, shininess: 45, rim: 0.7 },
-    led,
-  };
-}
+const SHELL: RGB = [66, 62, 60];
 
 /**
- * A TV-headed robot: a glossy moulded shell with knob ears and an
- * antenna, and an LED matrix for a face that shows what it is doing.
+ * A heavy, gentle robot: a domed head on a neck between broad shoulders,
+ * with glowing eyes that do the acting and a jaw that smiles and talks.
  *
- * The element is a `size` × `size` box with the robot at rest centred
- * in it. Its canvas reaches past the box, so hops, the antenna's glow and
- * the floor's shadow draw outside it without taking part in layout.
+ * The element is a `size` × `size` box with the robot at rest filling it;
+ * its canvas reaches past the box, so the head can tilt and the glow can
+ * spill without taking part in layout.
  */
 export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function RobotHead(
   {
-    model = 'tv',
-    shape = 'rectangle',
     state = 'idle',
+    expression,
     size = 160,
-    color = '#2b49a3',
-    trimColor = '#93a6c8',
-    screenColor = '#e8f2ff',
+    color,
+    eyeColor,
     speed = 1,
     paused = false,
     interactive = true,
     floorShadow = true,
-    antenna = true,
     seed,
     className,
     style,
@@ -74,33 +49,38 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
   },
   ref
 ) {
-  void model;
   const boxRef = useRef<HTMLSpanElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useImperativeHandle(ref, () => canvasRef.current as HTMLCanvasElement);
   const reactId = useId();
-  const stateKey: RobotHeadState = state in labels ? state : 'idle';
-  const shapeKey: RobotHeadShape = robotHeadShapes.includes(shape) ? shape : 'rectangle';
+  const stateKey: RobotHeadState = robotHeadStates.includes(state) ? state : 'idle';
+  const exprKey: RobotExpression | undefined = expression && expression in EXPRESSIONS ? expression : undefined;
   const seedValue = Math.min(1, Math.max(0, seed ?? hashSeed(reactId)));
   const still = paused || !(speed > 0);
+  const shell = (color && parseColor(color)) || SHELL;
+  const eye = (eyeColor && parseColor(eyeColor)) || WHITE;
+  const shellKey = shell.join(',');
+  const eyeKey = eye.join(',');
 
   const sim = useRef<RobotSim | null>(null);
   const renderer = useRef<RobotRenderer | null>(null);
-  const pal = useRef<Palette>(palette(color, trimColor, screenColor));
-  pal.current = palette(color, trimColor, screenColor);
+  const pal = useRef(palette(shell));
+  const palKey = useRef(shellKey);
+  if (palKey.current !== shellKey) {
+    palKey.current = shellKey;
+    pal.current = palette(shell);
+  }
   const speedRef = useRef(speed);
   speedRef.current = speed;
   const interactiveRef = useRef(interactive);
   interactiveRef.current = interactive;
   const shadowRef = useRef(floorShadow);
   shadowRef.current = floorShadow;
-  const antennaRef = useRef(antenna);
-  antennaRef.current = antenna;
 
-  if (!sim.current) sim.current = new RobotSim(seedValue, stateKey);
-  sim.current.setState(stateKey);
+  if (!sim.current) sim.current = new RobotSim(seedValue, stateKey, exprKey, eye);
+  sim.current.set(stateKey, exprKey, eye);
 
-  const frame = frameFor(getShape(shapeKey), antenna, size);
+  const frame = frameFor(size);
   const frameRef = useRef(frame);
   frameRef.current = frame;
 
@@ -119,7 +99,8 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
     if (!ctx) return;
     if (!renderer.current) renderer.current = new RobotRenderer();
     const s = sim.current!;
-    renderer.current.draw(ctx, f, dpr, animated ? s.pose : restPose(stateKey), animated ? s : null, stateKey, getShape(shapeKey), pal.current, { floorShadow: shadowRef.current, antenna: antennaRef.current });
+    const face = animated ? s.face : targetFace(stateKey, exprKey, eye);
+    renderer.current.draw(ctx, f, dpr, animated ? s.pose : REST_POSE, face, pal.current, { shadow: shadowRef.current });
   };
 
   useEffect(() => {
@@ -131,18 +112,18 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
       const s = sim.current!;
       const el = boxRef.current;
       if (el && interactiveRef.current && Number.isFinite(pointer.x)) {
-        /* measured from the resting head's centre */
+        /* measured from between the eyes at rest */
         const box = el.getBoundingClientRect();
         const f = frameRef.current;
         const dx = pointer.x - (box.left + box.width / 2);
-        const dy = pointer.y - (box.top + f.cy - f.padTop);
-        s.pointer = Math.hypot(dx, dy) < 700 ? { x: dx, y: dy } : null;
+        const dy = pointer.y - (box.top + f.cy - f.padTop - 0.27 * f.unit);
+        s.pointer = Math.hypot(dx, dy) < 900 ? { x: dx, y: dy } : null;
       } else s.pointer = null;
       s.update(dt * speedRef.current);
       paint(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [still, size, stateKey, shapeKey, color, trimColor, screenColor, floorShadow, antenna]);
+  }, [still, size, stateKey, exprKey, shellKey, eyeKey, floorShadow]);
 
   const click = (e: MouseEvent<HTMLSpanElement>) => {
     if (interactive && !still) sim.current?.poke();
@@ -153,7 +134,7 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
     <span
       ref={boxRef}
       role="img"
-      aria-label={ariaLabel ?? `Robot, ${labels[stateKey]}`}
+      aria-label={ariaLabel ?? `Robot, ${stateKey}${exprKey ? `, ${exprKey}` : ''}`}
       className={className}
       onClick={click}
       style={{ position: 'relative', display: 'block', flex: 'none', width: size, height: size, cursor: interactive ? 'pointer' : undefined, ...style }}
@@ -175,4 +156,3 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
     </span>
   );
 });
-

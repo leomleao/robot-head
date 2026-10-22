@@ -1,2 +1,2 @@
-export { RobotHead, robotHeadStates, robotHeadShapes } from './RobotHead';
-export type { RobotHeadProps, RobotHeadState, RobotHeadModel, RobotHeadShape } from './types';
+export { RobotHead, robotHeadStates, robotExpressions } from './RobotHead';
+export type { RobotHeadProps, RobotHeadState, RobotExpression } from './types';

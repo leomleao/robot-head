@@ -1,6 +1,6 @@
 import type { CSSProperties, HTMLAttributes } from 'react';
 
-/** What the robot is doing: each state has its own face on the screen, its own motion and its own antenna light. */
+/** What the robot is doing: each state has its own motion and a face to go with it. */
 export type RobotHeadState =
   | 'idle'
   | 'thinking'
@@ -12,11 +12,23 @@ export type RobotHeadState =
   | 'error'
   | 'sleeping';
 
-/** The head's build. Only the TV head so far. */
-export type RobotHeadModel = 'tv';
-
-/** The outline of the head, seen from the front. Every shape carries the same screen, ears and antenna. */
-export type RobotHeadShape = 'rectangle' | 'square' | 'circle' | 'hexagon';
+/** How the robot feels: a face that replaces the state's own, keeping the state's motion. */
+export type RobotExpression =
+  | 'neutral'
+  | 'curious'
+  | 'happy'
+  | 'joyful'
+  | 'sad'
+  | 'sheepish'
+  | 'sleepy'
+  | 'suspicious'
+  | 'content'
+  | 'surprised'
+  | 'determined'
+  | 'attack'
+  | 'defense'
+  | 'peaceful'
+  | 'asleep';
 
 /**
  * Any other attribute (`className`, `style`, `onClick`, `aria-label`, …)
@@ -24,35 +36,25 @@ export type RobotHeadShape = 'rectangle' | 'square' | 'circle' | 'hexagon';
  * reaches the canvas inside it.
  */
 export interface RobotHeadProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'color'> {
-  /** Which head. Default `tv`. */
-  model?: RobotHeadModel;
-  /** The head's outline: `rectangle` (default), `square`, `circle` or `hexagon`. */
-  shape?: RobotHeadShape;
   /** What it is doing. Default `idle`. */
   state?: RobotHeadState;
-  /** The box the robot rests in, in px; hops and the glow reach past it. Default `160`. */
+  /** A face to wear over the state's own. */
+  expression?: RobotExpression;
+  /** The box the robot rests in, in px: head, neck and shoulders. Default `160`. */
   size?: number;
-  /** Colour of the shell. Default a deep glossy blue. */
+  /** Colour of the shell. Default a weathered gunmetal. */
   color?: string;
-  /** Colour of the ears and the antenna's collar. Default a pale steel. */
-  trimColor?: string;
-  /** Colour of the LEDs on the screen. Default a cool white. */
-  screenColor?: string;
+  /** Colour of the eyes' glow. Default a warm white. Defence and attack override it. */
+  eyeColor?: string;
   /** Multiplier on every animation's speed. Default `1`. */
   speed?: number;
   /** Freeze every animation on its current frame. */
   paused?: boolean;
-  /** Follow the pointer with the eyes and head, and hop and spin on a click. Default `true`. */
+  /** Follow the pointer with the eyes and head, and react to a click. Default `true`. */
   interactive?: boolean;
-  /**
-   * Show the antenna's stem and its light. Default `true`. Turn it off for
-   * small sizes, such as avatars in a list: the knob on top stays, and the
-   * head grows to fill the room the antenna took.
-   */
-  antenna?: boolean;
-  /** Draw the soft shadow on the floor under the head. Default `true`. */
+  /** Draw the soft shadow the head casts on its collar. Default `true`. */
   floorShadow?: boolean;
-  /** 0–1, offsets the blinks and glances so a row of heads does not move in unison. */
+  /** 0–1, offsets the blinks and glances so a row of robots does not move in unison. */
   seed?: number;
   className?: string;
   style?: CSSProperties;
