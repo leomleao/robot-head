@@ -119,11 +119,11 @@ export function targetFace(state: RobotHeadState, expression: RobotExpression | 
     const src = EXPRESSIONS[name];
     Object.assign(f.left, src.left);
     Object.assign(f.right, src.right);
-    f.jawOpen = src.jawOpen; f.jawSmile = src.jawSmile; f.teeth = src.teeth;
+    f.jawOpen = src.jawOpen; f.jawSmile = src.jawSmile;
     f.yaw = src.yaw; f.pitch = src.pitch; f.roll = src.roll;
     f.color[0] = src.color[0]; f.color[1] = src.color[1]; f.color[2] = src.color[2];
   }
-  if (name !== 'defense' && name !== 'attack') {
+  if (name !== 'defense' && name !== 'attack' && name !== 'angry') {
     f.color[0] = eye[0]; f.color[1] = eye[1]; f.color[2] = eye[2];
   }
   return f;
@@ -292,7 +292,7 @@ export class RobotSim {
     Object.assign(F.left, S.left);
     Object.assign(F.right, S.right);
     F.jawOpen = S.jawOpen + Math.max(0, this.jaw.spring.x) * 0.85 + Math.max(0, this.mouthLevel.x) * 0.9;
-    F.jawSmile = S.jawSmile; F.teeth = S.teeth;
+    F.jawSmile = S.jawSmile;
     F.yaw = S.yaw; F.pitch = S.pitch; F.roll = S.roll;
     F.color[0] = S.color[0]; F.color[1] = S.color[1]; F.color[2] = S.color[2];
     if (blink > 0) {

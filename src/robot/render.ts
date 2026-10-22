@@ -145,6 +145,9 @@ interface Projected {
 
 /* the colour of every inside surface, and of the mouth's dark */
 const INSIDE = '#0c090a';
+/* the iris's blades, and the lines between them */
+const IRIS = '#1c1517';
+const IRIS_LINE = '#3d3335';
 /* the outline's colour */
 const INK = '#140f12';
 
@@ -303,7 +306,6 @@ export class RobotRenderer {
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(0.6, U / 300);
     for (const i of idx) this.fillQuad(ctx, this.proj[this.owner[i]], this.order[i], pal);
-    this.drawTeeth(ctx, face, pal);
     this.drawSeams(ctx, U);
 
     /* the ink: the head's silhouette in a dark line, as drawn in the film */
@@ -356,7 +358,7 @@ export class RobotRenderer {
     ctx.stroke();
   }
 
-  /* the dark inside of the mouth, and the teeth along the top of it */
+  /* the dark inside of the mouth */
   private drawMouth(ctx: CanvasRenderingContext2D, face: FaceRig, pal: Palette) {
     void pal;
     const X = this.x, pt = this.pt;
@@ -407,53 +409,6 @@ export class RobotRenderer {
   }
 
   /*
-   * The teeth: a row of metal blocks hanging from the upper lip, seen only
-   * once the mouth is open wide (a smile shows just the dark band).
-   */
-  private drawTeeth(ctx: CanvasRenderingContext2D, face: FaceRig, pal: Palette) {
-    const open = Math.min(1, Math.max(0, (face.jawOpen - 0.4) / 0.3));
-    const k = open * (0.85 + 0.15 * Math.min(1, face.teeth));
-    if (k < 0.02) return;
-    const X = this.x, pt = this.pt;
-    const N = this.nrm;
-    X.normal(0, 0, 1, N);
-    if (N[2] < 0.1) return;
-    const n = 5;
-    const h = 0.05 + 0.015 * face.teeth;
-    /* bright bare metal, about twice the shell's value */
-    const c = radiance(pal.shell, 0, 0.15, 1, this.col);
-    const body = css([c[0] * 4.2, c[1] * 4.2, c[2] * 4.2]);
-    const lit = css([c[0] * 6.5, c[1] * 6.5, c[2] * 6.5]);
-    ctx.globalAlpha = Math.min(1, k * 1.4);
-    for (let i = 0; i < n; i++) {
-      const span = HEAD.r * 1.5;
-      const x0 = -span / 2 + (i / n) * span + 0.009;
-      const x1 = x0 + span / n - 0.018;
-      /* the row follows the curve of the lip, each block a little narrower at its foot */
-      const z = (x: number) => craniumFront(x, 0).z - 0.03;
-      const inset = (x1 - x0) * 0.12;
-      ctx.beginPath();
-      X.head(x0, 0.002, z(x0), pt, 0); ctx.moveTo(pt[0], pt[1]);
-      X.head(x1, 0.002, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
-      X.head(x1 - inset, h, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
-      X.head(x0 + inset, h, z(x0), pt, 0); ctx.lineTo(pt[0], pt[1]);
-      ctx.closePath();
-      ctx.fillStyle = body;
-      ctx.fill();
-      /* the lit edge along the bottom */
-      ctx.beginPath();
-      X.head(x0 + inset, h - 0.008, z(x0), pt, 0); ctx.moveTo(pt[0], pt[1]);
-      X.head(x1 - inset, h - 0.008, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
-      X.head(x1 - inset, h, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
-      X.head(x0 + inset, h, z(x0), pt, 0); ctx.lineTo(pt[0], pt[1]);
-      ctx.closePath();
-      ctx.fillStyle = lit;
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  /*
    * One eye, drawn in its own patch of the face: the patch's tangent plane
    * is mapped to the screen, so everything inside is drawn in head units
    * centred on the socket. `side` is −1 for the eye on the viewer's left.
@@ -498,7 +453,7 @@ export class RobotRenderer {
     ctx.clip();
     if (open > 0.001 && bright > 0.001) {
       /* the disc: hot white at the core, the colour toward its edge */
-      const dark = e.pupil;
+      const iris = Math.min(1, Math.max(0, e.pupil));
       const core = (k: number) => `rgb(${Math.round(r0 + (255 - r0) * k)},${Math.round(g0 + (255 - g0) * k)},${Math.round(b0 + (255 - b0) * k)})`;
       /* a small white core, a little low in the disc, falling off evenly to
          a warm rim at about half the brightness; a small head gets a wider
@@ -506,26 +461,66 @@ export class RobotRenderer {
       const corePart = 0.14 + 0.2 * (1 - smooth(6, 20, r * X.U));
       const grad = ctx.createRadialGradient(gx, gy + r * 0.1, 0, gx, gy, r);
       const rim = (k: number) => `rgb(${Math.round(r0 * k)},${Math.round(g0 * k * 0.9)},${Math.round(b0 * k * 0.82)})`;
-      grad.addColorStop(0, core(0.95 * (1 - dark)));
-      grad.addColorStop(corePart, core(0.7 * (1 - dark)));
+      grad.addColorStop(0, core(0.95));
+      grad.addColorStop(corePart, core(0.7));
       grad.addColorStop(0.55, rim(0.86));
       grad.addColorStop(0.95, rim(0.6));
       grad.addColorStop(1, rim(0.54));
-      ctx.globalAlpha = Math.min(1, bright) * (1 - dark * 0.92);
+      ctx.globalAlpha = Math.min(1, bright);
       glowPath(ctx, gx, gy, r, e.shape);
       ctx.fillStyle = grad;
       ctx.fill();
-      /* defence mode: a pinpoint in the middle of the dark */
-      if (dark > 0.01) {
-        ctx.globalAlpha = Math.min(1, bright) * dark;
-        const pr = r * (0.2 + 0.7 * (1 - dark));
-        const pg = ctx.createRadialGradient(gx, gy, 0, gx, gy, pr);
-        pg.addColorStop(0, core(0.4));
-        pg.addColorStop(0.6, `rgb(${r0},${g0},${b0})`);
-        pg.addColorStop(1, `rgba(${r0},${g0},${b0},0)`);
-        glowPath(ctx, gx, gy, pr, e.shape);
-        ctx.fillStyle = pg;
+      /*
+       * The iris, for anger and defence: a camera's aperture closing over the
+       * glow. A dark disc of blades whose edges run on past each corner of a
+       * five-sided opening; the opening narrows to a pinpoint as `pupil`
+       * goes to 1, the blades turning as it closes, and the light shows
+       * through it.
+       */
+      if (iris > 0.01) {
+        ctx.globalAlpha = Math.min(1, iris * 4);
+        ctx.beginPath();
+        ctx.arc(gx, gy, r * 1.03, 0, Math.PI * 2);
+        ctx.fillStyle = IRIS;
         ctx.fill();
+        const ap = r * (0.92 - 0.8 * iris);
+        const turn = iris * 0.9;
+        const vx = new Float32Array(5), vy = new Float32Array(5);
+        for (let i = 0; i < 5; i++) {
+          const a = turn - Math.PI / 2 + (i / 5) * Math.PI * 2;
+          vx[i] = gx + Math.cos(a) * ap;
+          vy[i] = gy + Math.sin(a) * ap;
+        }
+        ctx.globalAlpha = Math.min(1, bright);
+        const hot = ctx.createRadialGradient(gx, gy, 0, gx, gy, ap);
+        hot.addColorStop(0, core(0.55));
+        hot.addColorStop(0.5, `rgb(${r0},${g0},${b0})`);
+        hot.addColorStop(1, rim(0.8));
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          if (i) ctx.lineTo(vx[i], vy[i]);
+          else ctx.moveTo(vx[i], vy[i]);
+        }
+        ctx.closePath();
+        ctx.fillStyle = hot;
+        ctx.fill();
+        /* the blades' edges: each side of the opening carried on to the rim */
+        ctx.globalAlpha = Math.min(1, iris * 4);
+        ctx.strokeStyle = IRIS_LINE;
+        ctx.lineWidth = r * 0.035;
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const j = (i + 4) % 5;
+          const dx = vx[i] - vx[j], dy = vy[i] - vy[j];
+          const l = Math.hypot(dx, dy) || 1;
+          /* how far along that line the disc's edge is */
+          const px = vx[i] - gx, py = vy[i] - gy;
+          const b = (px * dx + py * dy) / l;
+          const reach = -b + Math.sqrt(Math.max(0, b * b - (px * px + py * py) + r * r));
+          ctx.moveTo(vx[i], vy[i]);
+          ctx.lineTo(vx[i] + (dx / l) * reach, vy[i] + (dy / l) * reach);
+        }
+        ctx.stroke();
       }
       ctx.globalAlpha = 1;
     }
@@ -535,7 +530,7 @@ export class RobotRenderer {
     /* the bloom: the glow lighting the air and the shell round the socket */
     if (open > 0.001 && bright > 0.001) {
       ctx.globalCompositeOperation = 'lighter';
-      const a = 0.3 * Math.min(1.4, bright) * Math.min(1, open * 1.6) * (1 - e.pupil * 0.5) * (0.6 + 0.4 * facing);
+      const a = 0.3 * Math.min(1.4, bright) * Math.min(1, open * 1.6) * (1 - Math.min(1, e.pupil) * 0.6) * (0.6 + 0.4 * facing);
       const bloom = ctx.createRadialGradient(gx, gy, r * 0.6, gx, gy, R * 1.7);
       bloom.addColorStop(0, `rgba(${r0},${g0},${b0},${a})`);
       bloom.addColorStop(0.4, `rgba(${r0},${g0},${b0},${a * 0.2})`);

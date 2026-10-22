@@ -65,7 +65,7 @@ const FACE_SLIDERS: Array<[string, number, number]> = [
   ['lidTop', 0, 1], ['lidBottom', 0, 1], ['lidAngle', -0.6, 0.6], ['lidCurve', 0, 1], ['glow', 0, 1.5], ['size', 0.6, 1.3],
   ['shape', 0, 1], ['pupil', 0, 1], ['gazeX', -1, 1], ['gazeY', -1, 1],
 ];
-const JAW_SLIDERS: Array<[keyof FaceRig, number, number]> = [['jawOpen', 0, 1], ['jawSmile', -1, 1], ['teeth', 0, 1]];
+const JAW_SLIDERS: Array<[keyof FaceRig, number, number]> = [['jawOpen', 0, 1], ['jawSmile', -1, 1]];
 
 function Rig() {
   const [pose, setPose] = useState<Partial<RobotPose>>({ yaw: -0.25, pitch: 0, roll: 0 });
@@ -130,6 +130,7 @@ function Live() {
 
 function Mouth() {
   const big = new URLSearchParams(location.search).get('big');
+  const bigExpr = (new URLSearchParams(location.search).get('expr') ?? 'neutral') as RobotExpression;
   const opens = big ? [Number(big)] : [0.14, 0.4, 0.7, 1];
   const yaw = Number(new URLSearchParams(location.search).get('yaw') ?? -0.25);
   const poses: Array<Partial<RobotPose>> = big ? [{ yaw }] : [{}, { yaw: -0.4, pitch: 0.12 }];
@@ -139,8 +140,8 @@ function Mouth() {
       {poses.map((pose, i) => (
         <div className="row" key={i} style={{ gap: 8 }}>
           {opens.map((o) => {
-            const f = cloneFace(EXPRESSIONS.neutral);
-            f.jawOpen = o;
+            const f = cloneFace(EXPRESSIONS[big ? bigExpr : 'neutral']);
+            if (!big || o > 0) f.jawOpen = o;
             return <Still key={o} pose={pose} face={f} size={big ? 560 : 260} />;
           })}
         </div>
@@ -159,6 +160,8 @@ const GALLERY: Array<{ name: string; pose: Partial<RobotPose>; expr: RobotExpres
   { name: 'looking-down', pose: { yaw: -0.3, pitch: -0.3, roll: 0.1 }, expr: 'neutral' },
   { name: 'open-mouth', pose: { yaw: 0.1 }, expr: 'surprised', jaw: 0.75 },
   { name: 'sad', pose: { yaw: 0.15 }, expr: 'sad' },
+  { name: 'angry', pose: { yaw: -0.1, pitch: -0.06 }, expr: 'angry' },
+  { name: 'defense', pose: {}, expr: 'defense' },
 ];
 
 function Gallery() {
