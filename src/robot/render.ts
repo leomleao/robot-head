@@ -5,7 +5,7 @@
    lighting; then the face goes on top: dark sockets, the glow inside them
    cut by the lids, and a bloom that spills onto the shell. */
 
-import { HEAD, HEAD_TOP, MAT, SHOULDER_FRONT, craniumFront, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
+import { HEAD, HEAD_TOP, MAT, SHOULDER_FRONT, craniumFront, shoulderTop, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
 import { css, linear, radiance, type Material } from './light';
 import type { EyeRig, FaceRig, RGB } from './rig';
 
@@ -156,7 +156,7 @@ const EYE_NORMAL_R: V3 = (() => {
 const EYE_NORMAL_L: V3 = [-EYE_NORMAL_R[0], EYE_NORMAL_R[1], EYE_NORMAL_R[2]];
 
 /* how far the body is tipped toward us, radians */
-const BODY_VIEW = -0.16;
+const BODY_VIEW = -0.3;
 /* and lifted back up, so the collar's front edge stays just under the jaw */
 const BODY_LIFT = -0.045;
 
@@ -235,6 +235,8 @@ export class RobotRenderer {
       V[3] * x + V[4] * (y - O) + V[5] * z + O + BODY_LIFT,
       V[6] * x + V[7] * (y - O) + V[8] * z,
     ];
+    /* the body's plates are weathered flatter than the head: the overhead softbox barely shows in their tops */
+    const body: Material = { ...pal.shell, sheen: 0.12, spec: 0.08, albedo: [pal.shell.albedo[0] * 0.92, pal.shell.albedo[1] * 0.92, pal.shell.albedo[2] * 0.92] };
     const meshes = [m.chest, m.shoulders, m.collar, m.neck];
     const items: Array<[number, Mesh, number, V3]> = [];
     for (const mesh of meshes) {
@@ -258,9 +260,11 @@ export class RobotRenderer {
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(0.6, U / 300);
     for (const [, mesh, q, w] of items) {
-      const mat = mesh.mats[q] === MAT.dark ? pal.dark : mesh.mats[q] === MAT.inside ? pal.inside : pal.shell;
-      const col = radiance(mat, w[0], w[1], w[2], this.col);
-      const g = grimeOf(mesh.ys[q] - 0.45);
+      const mat = mesh.mats[q] === MAT.dark ? pal.dark : mesh.mats[q] === MAT.inside ? pal.inside : body;
+      /* lit as it stands; the tip toward us is only the camera's */
+      const n = mesh.normals;
+      const col = radiance(mat, n[q * 3], n[q * 3 + 1], n[q * 3 + 2], this.col);
+      const g = grimeOf(mesh.ys[q] - 0.75);
       col[0] *= g; col[1] *= g; col[2] *= g;
       const s = css(col);
       ctx.beginPath();
@@ -279,9 +283,17 @@ export class RobotRenderer {
     }
     /* rivets along the front edge of each shoulder */
     for (const s of [-1, 1]) {
-      for (let i = 0; i < 4; i++) {
-        const p = view(s * (0.4 + i * 0.12), 0.62, SHOULDER_FRONT + 0.002);
-        this.rivet(ctx, cx + p[0] * U, cy + p[1] * U, U * 0.011, pal);
+      /* a row just under the bevel along the front face, and one down the inner edge */
+      for (let i = 0; i < 7; i++) {
+        const x = 0.3 + i * 0.065;
+        const p = view(s * x, shoulderTop(x, SHOULDER_FRONT) + 0.075, SHOULDER_FRONT + 0.002);
+        this.rivet(ctx, cx + p[0] * U, cy + p[1] * U, U * 0.0095, pal);
+      }
+      for (let i = 0; i < 6; i++) {
+        const t = i / 5;
+        const y = shoulderTop(0.25, SHOULDER_FRONT) + 0.09 + t * 0.62;
+        const p = view(s * (0.29 - t * 0.1), y, SHOULDER_FRONT + 0.002);
+        this.rivet(ctx, cx + p[0] * U, cy + p[1] * U, U * 0.0095, pal);
       }
     }
     /* clip to the box, and fade out toward its bottom edge */
@@ -457,7 +469,7 @@ export class RobotRenderer {
     }
     ctx.closePath();
     /* and a wall across the middle of the head, so a turned head shows dark between the cranium and the jaw's arms */
-    for (const [x, y] of [[-0.34, -0.03], [0.34, -0.03], [0.34, 0.24], [-0.34, 0.24]] as const) {
+    for (const [x, y] of [[-0.27, -0.03], [0.27, -0.03], [0.27, 0.22], [-0.27, 0.22]] as const) {
       X.head(x, y, -0.06, pt, 0);
       if (x < 0 && y < 0) ctx.moveTo(pt[0], pt[1]);
       else ctx.lineTo(pt[0], pt[1]);

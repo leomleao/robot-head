@@ -130,7 +130,8 @@ function Live() {
 function Mouth() {
   const big = new URLSearchParams(location.search).get('big');
   const opens = big ? [Number(big)] : [0.14, 0.4, 0.7, 1];
-  const poses: Array<Partial<RobotPose>> = big ? [{ yaw: -0.25 }] : [{}, { yaw: -0.4, pitch: 0.12 }];
+  const yaw = Number(new URLSearchParams(location.search).get('yaw') ?? -0.25);
+  const poses: Array<Partial<RobotPose>> = big ? [{ yaw }] : [{}, { yaw: -0.4, pitch: 0.12 }];
   return (
     <section>
       <h2>Mouth</h2>
@@ -147,7 +148,35 @@ function Mouth() {
   );
 }
 
-/* ?only=likeness|rig|live|mouth shows one section, so it fits a screenshot */
+/* poses chosen to match reference stills, for exporting side by side */
+const GALLERY: Array<{ name: string; pose: Partial<RobotPose>; expr: RobotExpression; jaw?: number }> = [
+  { name: 'front-happy', pose: { pitch: -0.08 }, expr: 'happy' },
+  { name: 'front-neutral', pose: {}, expr: 'neutral' },
+  { name: 'three-quarter', pose: { yaw: -0.38, pitch: -0.04, roll: 0.05 }, expr: 'neutral' },
+  { name: 'profile', pose: { yaw: 0.95, pitch: 0.05 }, expr: 'neutral' },
+  { name: 'low-angle', pose: { yaw: 0.25, pitch: 0.28, roll: -0.05 }, expr: 'neutral' },
+  { name: 'looking-down', pose: { yaw: -0.3, pitch: -0.3, roll: 0.1 }, expr: 'neutral' },
+  { name: 'open-mouth', pose: { yaw: 0.1 }, expr: 'surprised', jaw: 0.75 },
+  { name: 'sad', pose: { yaw: 0.15 }, expr: 'sad' },
+];
+
+function Gallery() {
+  return (
+    <section>
+      <h2>Gallery</h2>
+      <div className="row" style={{ gap: 8 }}>
+        {GALLERY.map((g) => {
+          const f = cloneFace(EXPRESSIONS[g.expr]);
+          if (g.jaw !== undefined) f.jawOpen = g.jaw;
+          f.yaw = f.pitch = f.roll = 0;
+          return <span key={g.name} data-name={g.name}><Still pose={g.pose} face={f} size={420} /></span>;
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* ?only=likeness|rig|live|mouth|gallery shows one section, so it fits a screenshot */
 const only = new URLSearchParams(location.search).get('only');
 
 function Lab() {
@@ -159,6 +188,7 @@ function Lab() {
       {show('rig') && <Rig />}
       {show('live') && <Live />}
       {show('mouth') && <Mouth />}
+      {only === 'gallery' && <Gallery />}
     </main>
   );
 }

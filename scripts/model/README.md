@@ -8,7 +8,7 @@ We use three of its parts (`head`, `chin`, `head-fin`), assembled, decimated, re
 2. Assemble, decimate and export them with Blender (4.2+), headless:
 
    ```sh
-   P='{"finX":0,"finY":0,"finProud":3,"pivotY":10,"pivotZ":11,"headTris":3000,"chinTris":800,"finTris":480}'
+   P='{"finX":0,"finY":0,"finProud":3,"pivotY":10,"pivotZ":15,"headTris":3000,"chinTris":800,"finTris":480}'
    /Applications/Blender.app/Contents/MacOS/Blender -b --python scripts/model/export.py -- stl/ model.json "$P"
    ```
 

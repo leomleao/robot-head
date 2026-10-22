@@ -64,7 +64,7 @@ const face = (o: Partial<Omit<FaceRig, 'left' | 'right'>> & { eyes?: Partial<Eye
     left: eye({ ...eyes, ...left }),
     right: eye({ ...eyes, ...right }),
     color: WHITE,
-    jawOpen: 0.22,
+    jawOpen: 0.04,
     jawSmile: 0.3,
     teeth: 0,
     yaw: 0,
