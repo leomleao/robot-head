@@ -7,7 +7,7 @@ import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RobotHead, robotExpressions, robotHeadStates, type RobotExpression, type RobotHeadState } from 'robot-heads';
 import { RobotRenderer, frameFor, palette, type RobotPose } from '../../../src/robot/render';
-import { EXPRESSIONS, cloneFace, type FaceRig } from '../../../src/robot/rig';
+import { EXPRESSIONS, SEQUENCES, applySequence, cloneFace, mixFace, sequenceLength, type FaceRig, type SequenceName } from '../../../src/robot/rig';
 import { targetFace } from '../../../src/robot/sim';
 import './lab.css';
 
@@ -180,7 +180,96 @@ function Gallery() {
   );
 }
 
-/* ?only=likeness|rig|live|mouth|gallery shows one section, so it fits a screenshot */
+/* each expression beside the frame it is tuned against; crops are [x, y, w, h] in fractions of the still */
+const SHEET: Array<{ expr: RobotExpression; ref: string; crop: [number, number, number, number] }> = [
+  { expr: 'neutral', ref: '01-neutral/08314.jpg', crop: [0.25, 0, 0.4, 0.95] },
+  { expr: 'curious', ref: '02-curious/02740.jpg', crop: [0.22, 0, 0.42, 1] },
+  { expr: 'happy', ref: '03-happy/08720.jpg', crop: [0.2, 0, 0.5, 1] },
+  { expr: 'joyful', ref: '03-happy/09180.jpg', crop: [0.25, 0, 0.4, 0.95] },
+  { expr: 'sad', ref: '04-sad/06800.jpg', crop: [0.45, 0, 0.55, 1] },
+  { expr: 'sheepish', ref: '04-sad/06804.jpg', crop: [0.45, 0, 0.55, 1] },
+  { expr: 'sleepy', ref: '05-squint-half-lid/03328.jpg', crop: [0.15, 0, 0.7, 0.75] },
+  { expr: 'suspicious', ref: '05-squint-half-lid/05252.jpg', crop: [0.0, 0.1, 0.6, 0.9] },
+  { expr: 'content', ref: '05-squint-half-lid/04496.jpg', crop: [0.3, 0, 0.5, 0.75] },
+  { expr: 'surprised', ref: '09-eye-closeups/04796.jpg', crop: [0.3, 0, 0.6, 1] },
+  { expr: 'determined', ref: '07-angry-determined/09752.jpg', crop: [0.25, 0.1, 0.45, 0.9] },
+  { expr: 'angry', ref: '08-defense-red/06828.jpg', crop: [0.3, 0, 0.5, 0.9] },
+  { expr: 'attack', ref: '07-angry-determined/09224.jpg', crop: [0.25, 0, 0.5, 1] },
+  { expr: 'defense', ref: '08-defense-red/06832.jpg', crop: [0.3, 0, 0.5, 0.9] },
+  { expr: 'peaceful', ref: '06-blink-eyelids/09928.jpg', crop: [0.3, 0, 0.5, 1] },
+  { expr: 'asleep', ref: '13-wake-up-ending/10554.jpg', crop: [0.4, 0.2, 0.35, 0.6] },
+];
+
+function RefCrop({ src, crop, h }: { src: string; crop: [number, number, number, number]; h: number }) {
+  /* the still is 1920 × 802 */
+  const [x, y, w, hh] = crop;
+  const scale = h / (hh * 802);
+  return (
+    <span style={{ display: 'block', width: w * 1920 * scale, height: h, overflow: 'hidden', borderRadius: 6, flex: 'none' }}>
+      <img src={REF + src} alt="" style={{ width: 1920 * scale, height: 802 * scale, marginLeft: -x * 1920 * scale, marginTop: -y * 802 * scale, maxWidth: 'none' }} />
+    </span>
+  );
+}
+
+function Sheet() {
+  const from = Number(new URLSearchParams(location.search).get('from') ?? 0);
+  return (
+    <section>
+      <h2>G2 · Expressions</h2>
+      <div className="sheet">
+        {SHEET.slice(from, from + 8).map((x) => (
+          <figure key={x.expr} className="pair">
+            <Still pose={{}} face={targetFace('idle', x.expr, [255, 236, 226])} size={150} />
+            <RefCrop src={x.ref} crop={x.crop} h={150} />
+            <figcaption>{x.expr} · {x.ref}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* each scripted change as a filmstrip over the frames it follows; the face it leaves and the one it ends on */
+const STRIPS: Array<{ seq: SequenceName; from: RobotExpression; to: RobotExpression; refs: string[]; crop: [number, number, number, number] }> = [
+  { seq: 'defenseOn', from: 'neutral', to: 'defense', refs: ['06825', '06827', '06828', '06829', '06830', '06831', '06832', '06834'].map((f) => `08-defense-red/${f}.jpg`), crop: [0.4, 0, 0.4, 1] },
+  { seq: 'defenseOff', from: 'defense', to: 'neutral', refs: ['08290', '08309', '08310', '08311'].map((f) => `08-defense-red/${f}.jpg`).concat(['01-neutral/08312.jpg', '01-neutral/08313.jpg']), crop: [0.3, 0, 0.4, 1] },
+  { seq: 'blink', from: 'neutral', to: 'neutral', refs: ['09920', '09922', '09923', '09924', '09925', '09926', '09927', '09929'].map((f) => `06-blink-eyelids/${f}.jpg`), crop: [0.33, 0, 0.42, 1] },
+  { seq: 'wake', from: 'asleep', to: 'neutral', refs: ['10550', '10552', '10553', '10554', '10555', '10556', '10558', '10562'].map((f) => `13-wake-up-ending/${f}.jpg`), crop: [0.25, 0, 0.6, 1] },
+];
+
+function Strips() {
+  const eye: [number, number, number] = [255, 236, 226];
+  return (
+    <section>
+      <h2>G2 · Scripted changes</h2>
+      {STRIPS.slice(Number(new URLSearchParams(location.search).get("from") ?? 0)).map((x) => {
+        const seq = SEQUENCES[x.seq];
+        const len = sequenceLength(seq);
+        const a = targetFace('idle', x.from, eye), b = targetFace('idle', x.to, eye);
+        return (
+          <div key={x.seq} className="strip">
+            <div className="row" style={{ gap: 2 }}>
+              {Array.from({ length: 8 }, (_, i) => {
+                const t = (i / 7) * len;
+                /* the springs carry the face from one to the other underneath */
+                const f = mixFace(a, b, Math.min(1, t / (len * 0.6)), cloneFace(a));
+                applySequence(seq, t, f);
+                f.yaw = f.pitch = f.roll = 0;
+                return <Still key={i} pose={{}} face={f} size={110} />;
+              })}
+            </div>
+            <div className="row" style={{ gap: 2 }}>
+              {x.refs.map((r) => <RefCrop key={r} src={r} crop={x.crop} h={90} />)}
+            </div>
+            <p>{x.seq} · {len.toFixed(2)} s</p>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/* ?only=likeness|rig|live|mouth|gallery|sheet|strips shows one section, so it fits a screenshot */
 const only = new URLSearchParams(location.search).get('only');
 
 function Lab() {
@@ -193,6 +282,8 @@ function Lab() {
       {show('live') && <Live />}
       {show('mouth') && <Mouth />}
       {only === 'gallery' && <Gallery />}
+      {show('sheet') && <Sheet />}
+      {show('strips') && <Strips />}
     </main>
   );
 }

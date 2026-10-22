@@ -278,7 +278,7 @@ export class RobotRenderer {
     ctx.clearRect(0, 0, W, H);
 
     /* the inside of the mouth, behind everything else on the head */
-    this.drawMouth(ctx, face, pal);
+    this.drawMouth(ctx);
 
     /* every visible quad of the cranium, crest and jaw, back to front; the
        crest sits in a slot, so it is nudged forward to win against the
@@ -359,8 +359,7 @@ export class RobotRenderer {
   }
 
   /* the dark inside of the mouth */
-  private drawMouth(ctx: CanvasRenderingContext2D, face: FaceRig, pal: Palette) {
-    void pal;
+  private drawMouth(ctx: CanvasRenderingContext2D) {
     const X = this.x, pt = this.pt;
     /* a dark plate just behind the face, from the mouth line down into the jaw */
     ctx.beginPath();
@@ -524,7 +523,7 @@ export class RobotRenderer {
       }
       ctx.globalAlpha = 1;
     }
-    this.drawLids(ctx, e, side, R, r);
+    this.drawLids(ctx, e, side, R, r, pal, face.color);
     ctx.restore();
 
     /* the bloom: the glow lighting the air and the shell round the socket */
@@ -555,11 +554,15 @@ export class RobotRenderer {
    * down for a positive angle; the bottom lid's edge can bow up into a
    * smile.
    */
-  private drawLids(ctx: CanvasRenderingContext2D, e: EyeRig, side: number, R: number, r: number) {
+  private drawLids(ctx: CanvasRenderingContext2D, e: EyeRig, side: number, R: number, r: number, pal: Palette, glow: RGB) {
     const span = R * 1.2;
     const yt = -r * 1.04 + Math.max(0, e.lidTop) * 2 * r * 1.04;
     const yb = r * 1.04 - Math.max(0, e.lidBottom) * 2 * r * 1.04;
-    ctx.fillStyle = '#060504';
+    /* lids part way down are the socket's dark; shut, they are metal shutters with a seam where they meet */
+    const shut = smooth(0.82, 1, e.lidTop + e.lidBottom);
+    const c = radiance(pal.dark, 0, -0.2, 1, this.col);
+    const k = 1.1;
+    ctx.fillStyle = shut > 0.001 ? css([0.0019 + (c[0] * k - 0.0019) * shut, 0.0016 + (c[1] * k - 0.0016) * shut, 0.0013 + (c[2] * k - 0.0013) * shut]) : '#060504';
     if (e.lidTop > 0.001 || Math.abs(e.lidAngle) > 0.001) {
       /* inward is toward the crest: −x for the eye on the viewer's right */
       const slope = Math.tan(Math.max(-0.9, Math.min(0.9, e.lidAngle))) * -side;
@@ -580,6 +583,19 @@ export class RobotRenderer {
       ctx.quadraticCurveTo(0, yb - bow * 2, -span, yb);
       ctx.closePath();
       ctx.fill();
+    }
+    if (shut > 0.3) {
+      /* the seam between the shut lids: the glow leaks through it while the eye is lit, dark when it is out */
+      const ym = Math.min(yt, yb) + Math.abs(yb - yt) / 2;
+      const leak = Math.min(1, Math.max(0, e.glow - 0.3) * 1.2);
+      ctx.globalAlpha = smooth(0.3, 0.8, shut);
+      ctx.strokeStyle = leak > 0.05 ? `rgb(${Math.round(20 + (glow[0] * 0.85 - 20) * leak)},${Math.round(15 + (glow[1] * 0.75 - 15) * leak)},${Math.round(18 + (glow[2] * 0.6 - 18) * leak)})` : INK;
+      ctx.lineWidth = R * (0.07 - 0.03 * leak);
+      ctx.beginPath();
+      ctx.moveTo(-span, ym);
+      ctx.lineTo(span, ym);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
   }
 }

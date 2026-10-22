@@ -77,11 +77,11 @@ const face = (o: Partial<Omit<FaceRig, 'left' | 'right'>> & { eyes?: Partial<Eye
 export const EXPRESSIONS: Record<RobotExpression, FaceRig> = {
   neutral: face(),
   curious: face({ eyes: { size: 1.06, lidTop: 0 }, left: { lidTop: 0.14, lidAngle: -0.12 }, roll: 0.16, yaw: -0.08, jawSmile: 0.1 }),
-  happy: face({ eyes: { lidTop: 0, size: 1.03 }, jawSmile: 0.9, jawOpen: 0.3, pitch: 0.04 }),
-  joyful: face({ eyes: { lidTop: 0, lidBottom: 0.1, lidCurve: 0.5, size: 1.06, glow: 1.1 }, jawSmile: 1, jawOpen: 0.75, pitch: 0.08 }),
+  happy: face({ eyes: { lidTop: 0, size: 1.03 }, jawSmile: 1, jawOpen: 0.36, pitch: 0.04 }),
+  joyful: face({ eyes: { lidTop: 0, size: 1.06, glow: 1.1 }, jawSmile: 1, jawOpen: 0.8, pitch: 0.08 }),
   sad: face({ eyes: { lidTop: 0.36, lidAngle: -0.42, gazeY: 0.55, glow: 0.8 }, jawSmile: -0.55, jawOpen: 0.04, pitch: -0.16 }),
   sheepish: face({ eyes: { lidTop: 0.3, lidAngle: -0.3, gazeX: -0.35, gazeY: 0.35 }, jawSmile: -0.2, jawOpen: 0.1, roll: -0.08, pitch: -0.08 }),
-  sleepy: face({ eyes: { lidTop: 0.52, lidBottom: 0.12, glow: 0.75 }, jawSmile: 0, jawOpen: 0.06, pitch: -0.06 }),
+  sleepy: face({ eyes: { lidTop: 0.55, glow: 0.75, gazeY: 0.3 }, jawSmile: 0, jawOpen: 0.04, pitch: -0.06 }),
   suspicious: face({ eyes: { lidTop: 0.4, lidBottom: 0.24, lidAngle: 0.12, gazeX: 0.45 }, left: { lidTop: 0.5 }, jawSmile: -0.1, jawOpen: 0.04, yaw: 0.06 }),
   content: face({ eyes: { lidTop: 0.38, lidBottom: 0.16, lidCurve: 0.6, glow: 0.9 }, jawSmile: 0.5, jawOpen: 0.06 }),
   surprised: face({ eyes: { lidTop: 0, size: 1.14, glow: 1.25 }, jawOpen: 0.55, jawSmile: 0, pitch: 0.06 }),
@@ -90,7 +90,7 @@ export const EXPRESSIONS: Record<RobotExpression, FaceRig> = {
   attack: face({ eyes: { lidTop: 0.34, lidBottom: 0.24, lidAngle: 0.38, pupil: 0.6, glow: 1.3 }, color: RED, jawOpen: 0.4, jawSmile: 0.2, pitch: -0.08 }),
   defense: face({ eyes: { lidTop: 0.08, lidBottom: 0.04, lidAngle: 0.1, pupil: 1, glow: 1.2 }, color: RED, jawSmile: -0.2, jawOpen: 0.02 }),
   peaceful: face({ eyes: { lidTop: 0.5, lidBottom: 0.12, lidCurve: 0.8, glow: 0.85, gazeY: -0.2 }, jawSmile: 0.6, jawOpen: 0.05, pitch: 0.1 }),
-  asleep: face({ eyes: { lidTop: 0.55, lidBottom: 0.5, glow: 0.25 }, jawSmile: 0, jawOpen: 0.03, pitch: -0.22 }),
+  asleep: face({ eyes: { lidTop: 0.56, lidBottom: 0.46, glow: 0.2 }, jawSmile: 0, jawOpen: 0, pitch: -0.22 }),
 };
 
 export const EXPRESSION_NAMES = Object.keys(EXPRESSIONS) as RobotExpression[];
@@ -177,3 +177,81 @@ export function mixFace(a: FaceRig, b: FaceRig, k: number, out: FaceRig): FaceRi
   for (let c = 0; c < 3; c++) out.color[c] = 255 * Math.pow(l(Math.pow(a.color[c] / 255, 2.2), Math.pow(b.color[c] / 255, 2.2)), 1 / 2.2);
   return out;
 }
+
+/* ── sequences ───────────────────────────────────────────────────────── */
+
+/*
+ * Scripted changes of face, keyed from the film frame by frame (at 24 fps
+ * a frame is about 0.04 s). Each key sets some of the eyes' numbers and
+ * perhaps the colour; `null` stands for the face the robot is aiming for,
+ * so a sequence ending on `null` hands over to it without a jump. A field
+ * a key leaves out takes the target's value at that key.
+ */
+type EyePatch = Partial<Pick<EyeRig, 'lidTop' | 'lidBottom' | 'glow' | 'shape' | 'pupil' | 'size'>>;
+interface Patch {
+  eyes?: EyePatch;
+  color?: RGB;
+}
+export type Sequence = Array<[number, Patch | null]>;
+
+const SHUT: EyePatch = { lidTop: 0.56, lidBottom: 0.46 };
+const PINKISH: RGB = [255, 160, 150];
+
+export const SEQUENCES = {
+  /* 9920–9929: the lids meet and part again, quick */
+  blink: [[0, null], [0.07, { eyes: SHUT }], [0.11, { eyes: SHUT }], [0.24, null]],
+  /* 6825–6834: the white eye flushes pink, turns to a red pentagon, then the iris closes in */
+  defenseOn: [
+    [0, null],
+    [0.08, { eyes: { shape: 0.6, pupil: 0, glow: 1.15 }, color: PINKISH }],
+    [0.16, { eyes: { shape: 1, pupil: 0, glow: 1.25 }, color: RED }],
+    [0.3, { eyes: { shape: 1, pupil: 0.35, glow: 1.2 }, color: RED }],
+    [0.6, null],
+  ],
+  /* 8309–8312: the iris opens on a red pentagon that pales through pink back to white */
+  defenseOff: [
+    [0, null],
+    [0.16, { eyes: { shape: 1, pupil: 0.25 }, color: RED }],
+    [0.26, { eyes: { shape: 1, pupil: 0 }, color: PINKISH }],
+    [0.4, { eyes: { shape: 0.4, pupil: 0 } }],
+    [0.55, null],
+  ],
+  /* 10550–10562: the seam between the shut lids opens to slits, the glow comes up, the eyes open */
+  wake: [
+    [0, { eyes: { ...SHUT, glow: 0.15 } }],
+    [0.35, { eyes: { lidTop: 0.42, lidBottom: 0.32, glow: 0.45 } }],
+    [0.6, { eyes: { lidTop: 0.3, lidBottom: 0.18, glow: 0.8 } }],
+    [1, null],
+  ],
+} satisfies Record<string, Sequence>;
+
+export type SequenceName = keyof typeof SEQUENCES;
+
+export const sequenceLength = (seq: Sequence) => seq[seq.length - 1][0];
+
+const EYE_PATCH_KEYS = ['lidTop', 'lidBottom', 'glow', 'shape', 'pupil', 'size'] as const;
+
+/** Lay a sequence, `t` seconds in, over `face` (which holds the target face), in place. */
+export function applySequence(seq: Sequence, t: number, face: FaceRig) {
+  let i = 0;
+  while (i < seq.length - 2 && seq[i + 1][0] <= t) i++;
+  const [t0, a] = seq[i], [t1, b] = seq[i + 1];
+  const k = Math.min(1, Math.max(0, (t - t0) / Math.max(1e-6, t1 - t0)));
+  /* ease each segment in and out */
+  const e = k * k * (3 - 2 * k);
+  for (const eye of [face.left, face.right]) {
+    for (const key of EYE_PATCH_KEYS) {
+      const va = a?.eyes?.[key] ?? eye[key];
+      const vb = b?.eyes?.[key] ?? eye[key];
+      eye[key] = va + (vb - va) * e;
+    }
+  }
+  const ca = a?.color ?? face.color, cb = b?.color ?? face.color;
+  for (let c = 0; c < 3; c++) {
+    const la = Math.pow(ca[c] / 255, 2.2), lb = Math.pow(cb[c] / 255, 2.2);
+    face.color[c] = 255 * Math.pow(la + (lb - la) * e, 1 / 2.2);
+  }
+}
+
+/** Whether a face is one of the red ones, which the eyes turn to and from by a sequence. */
+export const isRed = (name: RobotExpression | undefined) => name === 'angry' || name === 'attack' || name === 'defense';

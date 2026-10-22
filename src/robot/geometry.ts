@@ -129,9 +129,11 @@ function sculpt(part: { pos: string; tri: string; nrm: string; mat: string }): M
 }
 
 /*
- * The jaw's top edge bends for a smile: the front of the band, near its
- * top, rises at the corners (and falls for a frown), most at the corners
- * and not at all at the middle or round the back.
+ * The jaw's top edge bends into the mouth's shape: for a smile its middle
+ * sinks while the corners stay at the mouth line, so the dark of the
+ * mouth opens as a crescent, a U; for a frown the corners sink instead,
+ * an upturned crescent. Only the front of the band bends, most at its top
+ * edge, fading out a little way down.
  */
 let jawTop = 0;
 export function shapeJaw(rest: Float32Array, pos: Float32Array, smile: number) {
@@ -140,10 +142,12 @@ export function shapeJaw(rest: Float32Array, pos: Float32Array, smile: number) {
   for (let i = 0; i < rest.length; i += 3) {
     const x = rest[i], y = rest[i + 1], z = rest[i + 2];
     if (z < 0.05) continue;
-    const near = 1 - Math.min(1, Math.max(0, (y - jawTop) / 0.05));
+    const near = 1 - Math.min(1, Math.max(0, (y - jawTop) / 0.1));
     if (near <= 0) continue;
-    const across = Math.min(1, Math.abs(x) / 0.29);
-    pos[i + 1] = y - smile * 0.075 * across * across * near * Math.min(1, z / 0.15);
+    const across = Math.min(1, Math.abs(x) / 0.3);
+    const front = Math.min(1, z / 0.18);
+    const shape = smile > 0 ? 1 - across * across : across * across;
+    pos[i + 1] = y + Math.abs(smile) * 0.075 * shape * near * front;
   }
 }
 

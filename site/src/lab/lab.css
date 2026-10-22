@@ -15,3 +15,9 @@ figcaption { grid-column: 1 / -1; color: var(--soft); }
 .controls label { display: grid; grid-template-columns: 80px 1fr 44px; gap: 8px; align-items: center; }
 .controls select { grid-column: 2 / 4; }
 hr { border: 0; border-top: 1px solid rgba(255,255,255,.15); width: 100%; }
+.sheet { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 12px; }
+.sheet .pair { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.sheet .pair > span:last-of-type { max-width: 100%; }
+.sheet .pair figcaption { flex-basis: 100%; }
+.strip { margin-bottom: 18px; }
+.strip p { margin: 4px 0 0; color: var(--soft); }

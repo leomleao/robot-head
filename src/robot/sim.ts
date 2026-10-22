@@ -3,7 +3,7 @@
    blinks and glances come and go on their own. */
 
 import type { RobotExpression, RobotHeadState } from '../types';
-import { EXPRESSIONS, FaceSprings, cloneFace, type FaceRig, type RGB } from './rig';
+import { EXPRESSIONS, FaceSprings, SEQUENCES, applySequence, cloneFace, isRed, sequenceLength, type FaceRig, type RGB, type SequenceName } from './rig';
 import type { RobotPose } from './render';
 
 class Spring {
@@ -140,7 +140,7 @@ export class RobotSim {
   /* a level from outside (the `mouth` prop, or audio) that drives the jaw, 0–1, or null */
   mouth: number | null = null;
   readonly springs: FaceSprings;
-  /* the face drawn this frame: the springs' face with blinks laid over it */
+  /* the face drawn this frame: the springs' face with any scripted change laid over it */
   readonly face: FaceRig;
 
   private target: FaceRig;
@@ -151,7 +151,8 @@ export class RobotSim {
   private glance = { yaw: 0, pitch: 0, gx: 0, gy: 0 };
   private nextGlance = 0.8;
   private nextBlink = 2;
-  private blinkAge = -1;
+  /* the scripted change of face playing now, and how far into it */
+  private seq: { name: SequenceName; t: number } | null = null;
   private surprise = -1;
   private jaw = new Jaw();
   private nextMumble = 6;
@@ -174,14 +175,23 @@ export class RobotSim {
       this.jaw.clear();
       this.nextMumble = this.time + (state === 'speaking' ? 0.15 : 2 + this.random() * 4);
     }
+    /* the eyes turn red, and back, by the film's steps; waking opens them from a seam */
+    const was = this.expression ?? STATE_FACE[this.state], now = expression ?? STATE_FACE[state];
+    if (isRed(was) !== isRed(now)) this.play(isRed(now) ? 'defenseOn' : 'defenseOff');
+    else if (was === 'asleep' && now !== 'asleep') this.play('wake');
     this.state = state;
     this.expression = expression;
     this.eye = eye;
   }
 
+  /** Play a scripted change of face over whatever the face is doing. */
+  play(name: SequenceName) {
+    this.seq = { name, t: 0 };
+  }
+
   /** A click: a blink, a flash of surprise, a settling nod. */
   poke() {
-    this.blinkAge = 0;
+    if (!this.seq) this.play('blink');
     this.surprise = 0;
     this.pitch.v -= 0.6;
   }
@@ -276,17 +286,11 @@ export class RobotSim {
     const outside = this.mouth;
     this.mouthLevel.step(outside === null ? 0 : Math.min(1, Math.max(0, outside)), dt, 9, 0.9);
 
-    /* blinks, laid over the springs so they stay quick */
+    /* blinks now and then, a double one sometimes */
     if (t > this.nextBlink && this.state !== 'sleeping') {
-      this.blinkAge = 0;
+      if (!this.seq) this.play('blink');
       this.nextBlink = t + 2.5 + rand() * 4;
       if (rand() < 0.15) this.nextBlink = t + 0.4;
-    }
-    let blink = 0;
-    if (this.blinkAge >= 0) {
-      this.blinkAge += dt;
-      blink = Math.sin(clamp(this.blinkAge / 0.22, 0, 1) * Math.PI);
-      if (this.blinkAge > 0.22) this.blinkAge = -1;
     }
     const S = this.springs.face, F = this.face;
     Object.assign(F.left, S.left);
@@ -295,11 +299,12 @@ export class RobotSim {
     F.jawSmile = S.jawSmile;
     F.yaw = S.yaw; F.pitch = S.pitch; F.roll = S.roll;
     F.color[0] = S.color[0]; F.color[1] = S.color[1]; F.color[2] = S.color[2];
-    if (blink > 0) {
-      for (const e of [F.left, F.right]) {
-        e.lidTop += (0.62 - e.lidTop) * blink;
-        e.lidBottom += (0.42 - e.lidBottom) * blink;
-      }
+    /* a scripted change, laid over the springs so it keeps its own timing */
+    if (this.seq) {
+      const seq = SEQUENCES[this.seq.name];
+      applySequence(seq, this.seq.t, F);
+      this.seq.t += dt;
+      if (this.seq.t > sequenceLength(seq)) this.seq = null;
     }
 
     this.pose.yaw = this.yaw.x;
