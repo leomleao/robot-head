@@ -17,7 +17,7 @@ export interface Palette {
 export function palette(shell: RGB): Palette {
   const a = linear(shell);
   return {
-    shell: { albedo: a, f0: 0.02, metal: 0.2, spec: 0.06, shininess: 10, rim: 0.35, sheen: 0.22, flat: 0.45 },
+    shell: { albedo: a, f0: 0.02, metal: 0.2, spec: 0.03, shininess: 10, rim: 0.4, sheen: 0.15, flat: 0.6 },
     dark: { albedo: [a[0] * 0.32, a[1] * 0.32, a[2] * 0.32], f0: 0.03, metal: 0.3, spec: 0.06, shininess: 12, rim: 0.3, flat: 0.4 },
     inside: { albedo: [0.006, 0.005, 0.004], f0: 0.02, metal: 0, spec: 0, shininess: 8, rim: 0, sheen: 0.15 },
   };
@@ -93,6 +93,8 @@ class HeadXform {
   U = 1;
   dx = 0;
   dy = 0;
+  /* how far the jaw hangs below the cranium at rest: the dark slit of the mouth */
+  drop = 0;
   set(pose: RobotPose, face: FaceRig, cx: number, cy: number, U: number) {
     rotation(pose.yaw + face.yaw, pose.pitch + face.pitch, pose.roll + face.roll, this.R);
     /* the jaw swings down and back about its hinge */
@@ -101,6 +103,8 @@ class HeadXform {
     this.J[0] = 1; this.J[4] = c; this.J[5] = s; this.J[7] = -s; this.J[8] = c;
     this.cx = cx; this.cy = cy; this.U = U;
     this.dx = pose.x; this.dy = -pose.lift;
+    /* about 3% of the head's width, and never under two and a half pixels, so a small head keeps its mouth */
+    this.drop = Math.max(0.018, 2.5 / U);
   }
   /** A model point on the head → [screen x, screen y, depth toward the viewer]. */
   head(x: number, y: number, z: number, out: Float32Array, o: number) {
@@ -117,7 +121,7 @@ class HeadXform {
   jaw(x: number, y: number, z: number, out: Float32Array, o: number) {
     const J = this.J;
     const hy = y - HEAD.hingeY, hz = z - HEAD.hingeZ;
-    this.head(x, HEAD.hingeY + J[4] * hy + J[5] * hz, HEAD.hingeZ + J[7] * hy + J[8] * hz, out, o);
+    this.head(x, HEAD.hingeY + J[4] * hy + J[5] * hz + this.drop, HEAD.hingeZ + J[7] * hy + J[8] * hz, out, o);
   }
   /** A normal on the head → world. */
   normal(nx: number, ny: number, nz: number, out: V3) {
@@ -140,7 +144,9 @@ interface Projected {
 }
 
 /* the colour of every inside surface, and of the mouth's dark */
-const INSIDE = '#0a0908';
+const INSIDE = '#0c090a';
+/* the outline's colour */
+const INK = '#140f12';
 
 /* how far forward the crest's quads sort (a sum over four corners) */
 const CREST_BIAS = 0.1;
@@ -194,6 +200,18 @@ export class RobotRenderer {
   private nrm: V3 = [0, 0, 0];
   private col: V3 = [0, 0, 0];
   private pt = new Float32Array(9);
+  private layer: HTMLCanvasElement | null = null;
+  private ink: HTMLCanvasElement | null = null;
+
+  /* an offscreen canvas the size of the frame's */
+  private surface(c: HTMLCanvasElement | null, w: number, h: number) {
+    if (!c) c = document.createElement('canvas');
+    if (c.width !== w || c.height !== h) {
+      c.width = w;
+      c.height = h;
+    }
+    return c;
+  }
 
   private setup() {
     if (this.proj.length) return;
@@ -249,6 +267,13 @@ export class RobotRenderer {
       }
     }
 
+    /* the head goes on its own layer, so its silhouette can be inked */
+    this.layer = this.surface(this.layer, W, H);
+    const out = ctx;
+    ctx = this.layer.getContext('2d')!;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+
     /* the inside of the mouth, behind everything else on the head */
     this.drawMouth(ctx, face, pal);
 
@@ -278,27 +303,28 @@ export class RobotRenderer {
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(0.6, U / 300);
     for (const i of idx) this.fillQuad(ctx, this.proj[this.owner[i]], this.order[i], pal);
-    this.drawTeeth(ctx, face);
+    this.drawTeeth(ctx, face, pal);
+
+    /* the ink: the head's silhouette in a dark line, as drawn in the film */
+    this.ink = this.surface(this.ink, W, H);
+    const ink = this.ink.getContext('2d')!;
+    ink.globalCompositeOperation = 'copy';
+    ink.drawImage(this.layer, 0, 0);
+    ink.globalCompositeOperation = 'source-in';
+    ink.fillStyle = INK;
+    ink.fillRect(0, 0, W, H);
+    ink.globalCompositeOperation = 'source-over';
+    const w = Math.max(1, U * 0.008);
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      out.drawImage(this.ink, Math.cos(a) * w, Math.sin(a) * w);
+    }
+    out.drawImage(this.layer, 0, 0);
+    ctx = out;
 
     this.drawEye(ctx, face.right, face, -1, pal);
     this.drawEye(ctx, face.left, face, 1, pal);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-  }
-
-  /* one part alone, back to front */
-  private drawPart(ctx: CanvasRenderingContext2D, p: Projected, pal: Palette) {
-    const { quads, normals } = p.mesh;
-    const N = this.nrm;
-    const items: Array<[number, number]> = [];
-    for (let q = 0; q < quads.length / 4; q++) {
-      if (p.jaw) this.x.jawNormal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
-      else this.x.normal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
-      if (N[2] < -0.04) continue;
-      const s = p.scr;
-      items.push([s[quads[q * 4] * 3 + 2] + s[quads[q * 4 + 1] * 3 + 2] + s[quads[q * 4 + 2] * 3 + 2], q]);
-    }
-    items.sort((a, b) => a[0] - b[0]);
-    for (const [, q] of items) this.fillQuad(ctx, p, q, pal);
   }
 
   private fillQuad(ctx: CanvasRenderingContext2D, p: Projected, q: number, pal: Palette) {
@@ -360,32 +386,45 @@ export class RobotRenderer {
   }
 
   /*
-   * The teeth: a row of squared blocks hanging from the upper lip, over
-   * the dark of the mouth and so drawn after the head; only as long as the
-   * mouth is open, so a closed mouth never shows them through the lip.
+   * The teeth: a row of metal blocks hanging from the upper lip, seen only
+   * once the mouth is open wide (a smile shows just the dark band).
    */
-  private drawTeeth(ctx: CanvasRenderingContext2D, face: FaceRig) {
-    const open = Math.min(1, Math.max(0, (face.jawOpen - 0.14) / 0.25));
-    const k = (0.75 + 0.25 * Math.min(1, face.teeth)) * open;
+  private drawTeeth(ctx: CanvasRenderingContext2D, face: FaceRig, pal: Palette) {
+    const open = Math.min(1, Math.max(0, (face.jawOpen - 0.4) / 0.3));
+    const k = open * (0.85 + 0.15 * Math.min(1, face.teeth));
     if (k < 0.02) return;
     const X = this.x, pt = this.pt;
     const N = this.nrm;
     X.normal(0, 0, 1, N);
     if (N[2] < 0.1) return;
-    const n = 9;
-    const h = (0.035 + 0.02 * face.teeth) * open;
-    ctx.globalAlpha = Math.min(1, k * 1.5);
+    const n = 8;
+    const h = 0.045 + 0.015 * face.teeth;
+    const body = css(radiance(pal.shell, 0, 0.15, 1, this.col));
+    const lit = css(radiance(pal.shell, -0.2, -0.7, 0.7, this.col));
+    ctx.globalAlpha = Math.min(1, k * 1.4);
     for (let i = 0; i < n; i++) {
-      const x0 = -HEAD.r * 0.74 + (i / n) * HEAD.r * 1.48 + 0.005;
-      const x1 = x0 + (HEAD.r * 1.48) / n - 0.01;
-      const z = (x: number) => craniumFront(x, 0).z - 0.018;
+      const span = HEAD.r * 1.36;
+      const x0 = -span / 2 + (i / n) * span + 0.006;
+      const x1 = x0 + span / n - 0.012;
+      /* the row follows the curve of the lip, each block a little narrower at its foot */
+      const z = (x: number) => craniumFront(x, 0).z - 0.03;
+      const inset = (x1 - x0) * 0.12;
       ctx.beginPath();
       X.head(x0, 0.002, z(x0), pt, 0); ctx.moveTo(pt[0], pt[1]);
       X.head(x1, 0.002, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
-      X.head(x1, h, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
-      X.head(x0, h, z(x0), pt, 0); ctx.lineTo(pt[0], pt[1]);
+      X.head(x1 - inset, h, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
+      X.head(x0 + inset, h, z(x0), pt, 0); ctx.lineTo(pt[0], pt[1]);
       ctx.closePath();
-      ctx.fillStyle = '#7d7771';
+      ctx.fillStyle = body;
+      ctx.fill();
+      /* the lit edge along the bottom */
+      ctx.beginPath();
+      X.head(x0 + inset, h - 0.008, z(x0), pt, 0); ctx.moveTo(pt[0], pt[1]);
+      X.head(x1 - inset, h - 0.008, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
+      X.head(x1 - inset, h, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
+      X.head(x0 + inset, h, z(x0), pt, 0); ctx.lineTo(pt[0], pt[1]);
+      ctx.closePath();
+      ctx.fillStyle = lit;
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -398,6 +437,7 @@ export class RobotRenderer {
    */
   private drawEye(ctx: CanvasRenderingContext2D, e: EyeRig, face: FaceRig, side: number, pal: Palette) {
     const X = this.x, pt = this.pt;
+    void X;
     const ex = side * HEAD.eyeX, ey = HEAD.eyeY, z = HEAD.eyeZ;
     const n = side < 0 ? EYE_NORMAL_L : EYE_NORMAL_R;
     const N = this.nrm;
@@ -437,12 +477,16 @@ export class RobotRenderer {
       /* the disc: hot white at the core, the colour toward its edge */
       const dark = e.pupil;
       const core = (k: number) => `rgb(${Math.round(r0 + (255 - r0) * k)},${Math.round(g0 + (255 - g0) * k)},${Math.round(b0 + (255 - b0) * k)})`;
-      /* the hot spot sits a little low in the disc, and the light falls away to a warm, dimmer rim */
-      const grad = ctx.createRadialGradient(gx, gy + r * 0.12, 0, gx, gy, r);
-      grad.addColorStop(0, core(0.85 * (1 - dark)));
-      grad.addColorStop(0.3, core(0.55 * (1 - dark)));
-      grad.addColorStop(0.75, `rgb(${Math.round(r0 * 0.92)},${Math.round(g0 * 0.86)},${Math.round(b0 * 0.86)})`);
-      grad.addColorStop(1, `rgb(${Math.round(r0 * 0.76)},${Math.round(g0 * 0.62)},${Math.round(b0 * 0.64)})`);
+      /* a small white core, a little low in the disc, falling off evenly to
+         a warm rim at about half the brightness; a small head gets a wider
+         core so its eyes still pop */
+      const corePart = 0.3 + 0.18 * (1 - smooth(6, 20, r * X.U));
+      const grad = ctx.createRadialGradient(gx, gy + r * 0.1, 0, gx, gy, r);
+      const rim = (k: number) => `rgb(${Math.round(r0 * k)},${Math.round(g0 * k * 0.9)},${Math.round(b0 * k * 0.82)})`;
+      grad.addColorStop(0, core(0.92 * (1 - dark)));
+      grad.addColorStop(corePart, core(0.75 * (1 - dark)));
+      grad.addColorStop(0.95, rim(0.6));
+      grad.addColorStop(1, rim(0.52));
       ctx.globalAlpha = Math.min(1, bright) * (1 - dark * 0.92);
       glowPath(ctx, gx, gy, r, e.shape);
       ctx.fillStyle = grad;
