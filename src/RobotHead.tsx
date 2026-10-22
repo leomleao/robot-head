@@ -1,15 +1,17 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, type MouseEvent } from 'react';
 import { listen, type AudioTap } from './audio';
-import type { RobotExpression, RobotHeadProps, RobotHeadState } from './types';
+import type { RobotExpression, RobotHeadHandle, RobotHeadProps, RobotHeadState } from './types';
 import { RobotRenderer, frameFor, palette } from './robot/render';
 import { EXPRESSIONS, EXPRESSION_NAMES, WHITE, type RGB } from './robot/rig';
-import { REST, RobotSim, targetFace } from './robot/sim';
+import { REST, ROBOT_ACTIONS, RobotSim, targetFace, type ActionOptions, type RobotAction } from './robot/sim';
 import { parseColor } from './color';
 import { subscribe, pointer } from './ticker';
 
 export const robotHeadStates: RobotHeadState[] = ['idle', 'thinking', 'searching', 'listening', 'speaking', 'working', 'happy', 'error', 'sleeping'];
 
 export const robotExpressions: RobotExpression[] = EXPRESSION_NAMES;
+
+export const robotActions: RobotAction[] = ROBOT_ACTIONS;
 
 function hashSeed(id: string): number {
   let h = 2166136261;
@@ -41,7 +43,7 @@ function lookPoint(at: RobotHeadProps['lookAt']): { x: number; y: number } | nul
  * its canvas reaches past the box, so the head can tilt, the glow can
  * spill and the floor's shadow can sit below without taking part in layout.
  */
-export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function RobotHead(
+export const RobotHead = forwardRef<RobotHeadHandle, RobotHeadProps>(function RobotHead(
   {
     state = 'idle',
     expression,
@@ -66,7 +68,6 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
 ) {
   const boxRef = useRef<HTMLSpanElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  useImperativeHandle(ref, () => canvasRef.current as HTMLCanvasElement);
   const reactId = useId();
   const stateKey: RobotHeadState = robotHeadStates.includes(state) ? state : 'idle';
   const exprKey: RobotExpression | undefined = expression && expression in EXPRESSIONS ? expression : undefined;
@@ -85,6 +86,8 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
     palKey.current = shellKey;
     pal.current = palette(shell);
   }
+  const stillRef = useRef(false);
+  stillRef.current = still || reducedMotion();
   const speedRef = useRef(speed);
   speedRef.current = speed;
   const interactiveRef = useRef(interactive);
@@ -116,6 +119,13 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
   }, [audio]);
 
   if (!sim.current) sim.current = new RobotSim(seedValue, stateKey, exprKey, eye);
+  useImperativeHandle(ref, () => ({
+    get canvas() {
+      return canvasRef.current;
+    },
+    /* a still head has nothing to play it on: it resolves at once */
+    play: (action: RobotAction, opts?: ActionOptions) => (stillRef.current ? Promise.resolve() : sim.current!.act(action, opts)),
+  }), []);
   sim.current.set(stateKey, exprKey, eye);
 
   const frame = frameFor(size);

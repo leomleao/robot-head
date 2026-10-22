@@ -98,6 +98,16 @@ class Jaw {
   }
 }
 
+/** Things the robot can be asked to do once, over whatever it is doing. */
+export type RobotAction = 'blink' | 'nod' | 'shake' | 'hmm' | 'laugh' | 'surprise' | 'wake' | 'defense';
+
+export const ROBOT_ACTIONS: RobotAction[] = ['blink', 'nod', 'shake', 'hmm', 'laugh', 'surprise', 'wake', 'defense'];
+
+export interface ActionOptions {
+  /** For `defense`: how long the eyes stay red, in seconds. Default 1.6. */
+  hold?: number;
+}
+
 /** The face each state wears when no expression is given. */
 export const STATE_FACE: Record<RobotHeadState, RobotExpression> = {
   idle: 'neutral',
@@ -169,6 +179,12 @@ export class RobotSim {
   /* now and then, idle, the head cocks to one side for a moment: "Hmm?" */
   private nextTilt = 9;
   private tiltUntil = -1;
+  /* the action playing now */
+  private action: { name: RobotAction; t: number; length: number; hold: number; done: () => void } | null = null;
+  /* a face an action wears for a while, over the expression */
+  private override: RobotExpression | null = null;
+  /* the face worn on the last step, to notice changes */
+  private wearing: RobotExpression;
 
   constructor(seed: number, state: RobotHeadState, expression: RobotExpression | undefined, eye: RGB) {
     this.random = rng(seed);
@@ -182,6 +198,7 @@ export class RobotSim {
     this.nextMumble = state === 'speaking' ? 0.3 : 3 + this.random() * 4;
     this.side = this.random() < 0.5 ? 1 : -1;
     this.nextTilt = 6 + this.random() * 8;
+    this.wearing = expression ?? STATE_FACE[state];
     const rest = REST[state];
     this.yaw.x = rest.yaw; this.pitch.x = rest.pitch; this.roll.x = rest.roll;
   }
@@ -194,13 +211,6 @@ export class RobotSim {
       /* happy arrives with a hop */
       if (state === 'happy') this.bounce.v += 0.9;
     }
-    /* the eyes turn red, and back, by the film's steps; waking opens them from a seam */
-    const was = this.expression ?? STATE_FACE[this.state], now = expression ?? STATE_FACE[state];
-    /* the iris faces (angry, defense) come and go by the film's steps; attack's pink just eases in */
-    const iris = (n: RobotExpression) => n === 'angry' || n === 'defense';
-    if (iris(now) && !isRed(was)) this.play('defenseOn');
-    else if (iris(was) && !isRed(now)) this.play('defenseOff');
-    else if (was === 'asleep' && now !== 'asleep') this.play('wake');
     this.state = state;
     this.expression = expression;
     this.eye = eye;
@@ -209,6 +219,79 @@ export class RobotSim {
   /** Play a scripted change of face over whatever the face is doing. */
   play(name: SequenceName) {
     this.seq = { name, t: 0 };
+  }
+
+  /* the face to wear now: an action's, the expression, or the state's */
+  private current(): RobotExpression {
+    return this.override ?? this.expression ?? STATE_FACE[this.state];
+  }
+
+  /* when the face changes: the eyes turn red and back by the film's steps, and wake from a seam */
+  private changed(was: RobotExpression, now: RobotExpression) {
+    /* the iris faces (angry, defense) come and go by the film's steps; attack's pink just eases in */
+    const iris = (n: RobotExpression) => n === 'angry' || n === 'defense';
+    if (iris(now) && !isRed(was)) this.play('defenseOn');
+    else if (iris(was) && !isRed(now)) this.play('defenseOff');
+    else if (was === 'asleep' && now !== 'asleep') this.play('wake');
+  }
+
+  /**
+   * Do something once, over whatever the robot is doing. A new action
+   * cuts the one playing short; the promise resolves when the action ends,
+   * either way.
+   */
+  act(name: RobotAction, opts: ActionOptions = {}): Promise<void> {
+    this.finish();
+    const hold = Math.max(0, opts.hold ?? 1.6);
+    let length = 1;
+    switch (name) {
+      case 'blink':
+        this.play('blink');
+        length = sequenceLength(SEQUENCES.blink);
+        break;
+      case 'nod':
+        length = 1;
+        break;
+      case 'shake':
+        length = 1.2;
+        break;
+      case 'hmm':
+        this.jaw.clear();
+        this.jaw.hum(this.random);
+        length = 1.6;
+        break;
+      case 'laugh':
+        this.jaw.clear();
+        this.jaw.laugh(this.random);
+        this.bounce.v += 0.5;
+        length = 1;
+        break;
+      case 'surprise':
+        this.surprise = 0;
+        if (!this.seq) this.play('blink');
+        length = 0.9;
+        break;
+      case 'wake':
+        this.play('wake');
+        length = sequenceLength(SEQUENCES.wake);
+        break;
+      case 'defense':
+        this.override = 'defense';
+        length = hold + sequenceLength(SEQUENCES.defenseOff);
+        break;
+    }
+    return new Promise((done) => {
+      this.action = { name, t: 0, length, hold, done };
+    });
+  }
+
+  /* end the action playing, if any */
+  private finish() {
+    const a = this.action;
+    if (!a) return;
+    this.action = null;
+    if (a.name === 'defense') this.override = null;
+    a.done();
   }
 
   /** A click: a blink, a flash of surprise, a small hop and a settling nod. */
@@ -335,6 +418,34 @@ export class RobotSim {
         break;
     }
 
+    /* the action playing: its own motion on top of the state's */
+    let ay = 0, ap = 0, ar = 0, agy = 0;
+    const a = this.action;
+    if (a) {
+      a.t += dt;
+      const k = a.t / a.length;
+      switch (a.name) {
+        case 'nod':
+          /* two slow dips */
+          ap = -Math.max(0, Math.sin(k * Math.PI * 2)) * 0.18;
+          break;
+        case 'shake':
+          ay = Math.sin(k * Math.PI * 3) * 0.18 * (1 - k);
+          break;
+        case 'hmm':
+          ar = 0.18 * this.side * Math.sin(Math.min(1, k * 1.4) * Math.PI);
+          agy = -0.4;
+          break;
+      }
+      if (a.name === 'defense' && a.t >= a.hold) this.override = null;
+      if (a.t >= a.length) this.finish();
+    }
+    const wearing = this.current();
+    if (wearing !== this.wearing) {
+      this.changed(this.wearing, wearing);
+      this.wearing = wearing;
+    }
+
     /* something to look at overrides the state's glances, the pointer only where the state allows */
     const look = this.state === 'sleeping' ? null : this.lookAt ?? (follows ? this.pointer : null);
     if (look) {
@@ -345,13 +456,14 @@ export class RobotSim {
       pitch = -clamp(look.y / 320, -1, 1) * 0.26;
       roll = -yaw * 0.1 + (this.state === 'listening' ? 0.12 : 0);
     }
-    this.yaw.step(yaw, dt, freq, damping);
-    this.pitch.step(pitch, dt, freq, damping);
-    this.roll.step(roll, dt, freq * 0.9, damping);
+    this.yaw.step(yaw + ay, dt, freq, damping);
+    this.pitch.step(pitch + ap, dt, freq, damping);
+    this.roll.step(roll + ar, dt, freq * 0.9, damping);
+    gy += agy;
     this.bounce.step(0, dt, 1.7, 0.32);
 
     /* the face */
-    targetFace(this.state, this.expression, this.eye, this.target);
+    targetFace(this.state, this.current(), this.eye, this.target);
     const T = this.target;
     T.left.gazeX += gx; T.right.gazeX += gx;
     T.left.gazeY += gy; T.right.gazeY += gy;

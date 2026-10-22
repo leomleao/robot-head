@@ -5,7 +5,7 @@
 
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { RobotHead, robotExpressions, robotHeadStates, type RobotExpression, type RobotHeadState } from 'robot-heads';
+import { RobotHead, robotActions, robotExpressions, robotHeadStates, type RobotExpression, type RobotHeadHandle, type RobotHeadState } from 'robot-heads';
 import { RobotRenderer, frameFor, palette, type RobotPose } from '../../../src/robot/render';
 import { EXPRESSIONS, SEQUENCES, applySequence, cloneFace, mixFace, sequenceLength, type FaceRig, type SequenceName } from '../../../src/robot/rig';
 import { targetFace } from '../../../src/robot/sim';
@@ -112,14 +112,22 @@ function Live() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const m = mouth < 0 ? undefined : mouth;
+  const robot = useRef<RobotHeadHandle>(null);
+  const [doing, setDoing] = useState('');
   return (
     <section>
       <h2>Live</h2>
       <div className="row">
-        <RobotHead size={320} state={state} expression={expr || undefined} mouth={m} />
+        <RobotHead ref={robot} size={320} state={state} expression={expr || undefined} mouth={m} />
         <div className="controls">
           <label>state <select value={state} onChange={(e) => setState(e.target.value as RobotHeadState)}>{robotHeadStates.map((s) => <option key={s}>{s}</option>)}</select></label>
           <label>expression <select value={expr} onChange={(e) => setExpr(e.target.value as RobotExpression | '')}><option value="">(state's own)</option>{robotExpressions.map((e) => <option key={e}>{e}</option>)}</select></label>
+          <div className="actions">
+            {robotActions.map((a) => (
+              <button key={a} onClick={() => { setDoing(a); void robot.current?.play(a).then(() => setDoing((d) => (d === a ? '' : d))); }}>{a}</button>
+            ))}
+            <span>{doing && `playing ${doing}…`}</span>
+          </div>
           <label>mouth <input type="range" min={-0.01} max={1} step={0.01} value={mouth} onChange={(e) => setMouth(+e.target.value)} /> {m === undefined ? 'auto' : m.toFixed(2)}</label>
         </div>
         <RobotHead size={64} state={state} expression={expr || undefined} />

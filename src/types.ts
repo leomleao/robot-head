@@ -33,10 +33,27 @@ export type RobotExpression =
   | 'peaceful'
   | 'asleep';
 
+/** Something the robot can be asked to do once, through its handle. */
+export type { RobotAction, ActionOptions } from './robot/sim';
+import type { ActionOptions, RobotAction } from './robot/sim';
+
+/** What a `ref` on a robot reaches. */
+export interface RobotHeadHandle {
+  /** The canvas it draws on. */
+  readonly canvas: HTMLCanvasElement | null;
+  /**
+   * Do something once, over whatever it is doing: `blink`, `nod`, `shake`,
+   * `hmm`, `laugh`, `surprise`, `wake`, or `defense` (the eyes go red for
+   * `hold` seconds and back). Resolves when it ends; a new action cuts the
+   * last one short.
+   */
+  play(action: RobotAction, opts?: ActionOptions): Promise<void>;
+}
+
 /**
  * Any other attribute (`className`, `style`, `onClick`, `aria-label`, …)
  * goes on the element: the `size` × `size` box the robot rests in. A `ref`
- * reaches the canvas inside it.
+ * reaches its handle.
  */
 export interface RobotHeadProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'color'> {
   /** What it is doing. Default `idle`. */

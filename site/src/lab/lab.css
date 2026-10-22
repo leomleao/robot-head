@@ -27,3 +27,5 @@ hr { border: 0; border-top: 1px solid rgba(255,255,255,.15); width: 100%; }
 audio { width: 300px; }
 .meter { display: block; width: 300px; height: 8px; background: rgba(0,0,0,.3); border-radius: 4px; overflow: hidden; }
 .meter span { display: block; height: 100%; width: 0; background: #ffcf6e; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.actions button { font: inherit; padding: 4px 10px; border-radius: 6px; border: 0; background: rgba(255,255,255,.12); color: inherit; cursor: pointer; }
