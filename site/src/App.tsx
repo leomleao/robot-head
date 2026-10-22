@@ -1,66 +1,59 @@
-import { useEffect, useState } from 'react';
-import { RobotHead, robotHeadShapes, robotHeadStates, type RobotHeadShape, type RobotHeadState } from 'robot-heads';
+import { useEffect, useRef, useState } from 'react';
+import { RobotHead, robotActions, robotExpressions, robotHeadStates, type RobotAction, type RobotExpression, type RobotHeadHandle, type RobotHeadState } from 'robot-heads';
 
-/* ?shape=circle&state=thinking&paused for screenshots */
+/* ?state=thinking&expression=happy&paused for screenshots */
 const q = new URLSearchParams(location.search);
 
-const shapeLabels: Record<RobotHeadShape, string> = {
-  rectangle: 'Rectangle',
-  square: 'Square',
-  circle: 'Circle',
-  hexagon: 'Hexagon',
+/* what each state does, in his own words and then in ours */
+const stateHints: Record<RobotHeadState, [string, string]> = {
+  idle: ['Hmm.', 'Slow glances, slow blinks, the odd tilt of the head.'],
+  thinking: ['Hmm?', 'Looking up, to one side and then the other.'],
+  searching: ['Rockwell?', 'A slow sweep, the eyes a step ahead of the head.'],
+  listening: ['Mm-hmm.', 'Head cocked toward you, nodding along.'],
+  speaking: ['You stay. I go.', 'Short words, a pause between. Give it audio to lip-sync.'],
+  working: ['I fix.', 'Eyes down on the work, careful.'],
+  happy: ['Rockwell!', 'A hop, a grin, a sway.'],
+  error: ['Awww.', 'A slow shake of the head. Never red: red is for danger.'],
+  sleeping: ['…', 'Shut down and breathing. Wake it to watch the eyes come back.'],
 };
 
-const stateHints: Record<RobotHeadState, string> = {
-  idle: 'Looks around, blinks, hops now and then.',
-  thinking: 'Eyes up, dots pulsing, head tilted to one side.',
-  searching: 'Sweeps side to side, a beam scanning the screen.',
-  listening: 'Head cocked, an equaliser following the voice.',
-  speaking: 'A mouth that moves with the words.',
-  working: 'Head down, a progress bar filling.',
-  happy: 'Bouncing, all smiles.',
-  error: 'Shakes its head. Red X eyes.',
-  sleeping: 'Drooped and dim, dreaming in z’s.',
+const actionHints: Record<RobotAction, string> = {
+  blink: 'Blink',
+  nod: 'Nod',
+  shake: 'Shake',
+  hmm: 'Hmm?',
+  laugh: 'Laugh',
+  surprise: 'Surprise',
+  wake: 'Wake',
+  defense: 'Defense',
 };
 
 interface Colors {
   color: string;
-  trimColor: string;
-  screenColor: string;
+  eyeColor: string;
 }
 
-const DEFAULTS: Colors = { color: '#2b49a3', trimColor: '#93a6c8', screenColor: '#e8f2ff' };
+const DEFAULTS: Colors = { color: '#3c373f', eyeColor: '#ffece2' };
 
 const SWATCHES: Record<keyof Colors, Array<[string, string]>> = {
   color: [
-    ['Cobalt', '#2b49a3'],
-    ['Tomato', '#c8372d'],
-    ['Tangerine', '#e2762a'],
-    ['Mustard', '#e0ad1f'],
-    ['Mint', '#2f8f58'],
-    ['Teal', '#1f8189'],
-    ['Grape', '#6a45b8'],
-    ['Bubblegum', '#d9558f'],
-    ['Graphite', '#3a3d44'],
-    ['Porcelain', '#e6e6ea'],
+    ['Gunmetal', '#3c373f'],
+    ['Iron', '#4a4744'],
+    ['Rust', '#6b3f2e'],
+    ['Bronze', '#7a5a3a'],
+    ['Navy', '#2c3550'],
+    ['Moss', '#3d4a35'],
+    ['Ash', '#8a8580'],
   ],
-  trimColor: [
-    ['Steel', '#93a6c8'],
-    ['Silver', '#c4c9d2'],
-    ['Brass', '#c9a45c'],
-    ['Copper', '#c27a52'],
-    ['Black', '#2a2c31'],
-  ],
-  screenColor: [
-    ['White', '#e8f2ff'],
-    ['Ice', '#7fe7ff'],
-    ['Matrix', '#7dff9a'],
-    ['Amber', '#ffc46b'],
-    ['Neon', '#ff8fd0'],
+  eyeColor: [
+    ['Warm', '#ffece2'],
+    ['Amber', '#ffb347'],
+    ['Moonlight', '#bfe3ff'],
+    ['Mint', '#c8ffd9'],
   ],
 };
 
-const ROW_LABELS: Record<keyof Colors, string> = { color: 'Shell', trimColor: 'Trim', screenColor: 'Screen' };
+const ROW_LABELS: Record<keyof Colors, string> = { color: 'Shell', eyeColor: 'Eyes' };
 const SPEEDS = [0.5, 1, 1.5, 2];
 
 const title = (s: string) => s[0].toUpperCase() + s.slice(1);
@@ -69,11 +62,10 @@ const title = (s: string) => s[0].toUpperCase() + s.slice(1);
 function useStageSize() {
   const measure = () => {
     const w = window.innerWidth, h = window.innerHeight;
-    /* the size is the resting robot itself; its hops reach past it */
     if (w < 900) return Math.max(160, Math.min(w - 96, 260));
     /* centred on the screen, so it keeps the controls' width clear on both sides */
     const room = Math.min(w - 2 * (300 + 40 + 40), h - 300);
-    return Math.round(Math.max(170, Math.min(room * 0.62, 330)));
+    return Math.round(Math.max(170, Math.min(room * 0.62, 320)));
   };
   const [size, setSize] = useState(measure);
   useEffect(() => {
@@ -84,15 +76,32 @@ function useStageSize() {
   return size;
 }
 
-function Dock({ shape, onChange, colors, antenna }: { shape: RobotHeadShape; onChange: (s: RobotHeadShape) => void; colors: Colors; antenna: boolean }) {
+/* frames per second, measured over the last second */
+function useFps() {
+  const [fps, setFps] = useState(0);
+  useEffect(() => {
+    let raf = 0, frames = 0, since = performance.now();
+    const tick = (now: number) => {
+      frames++;
+      if (now - since >= 1000) {
+        setFps(Math.round((frames * 1000) / (now - since)));
+        frames = 0;
+        since = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return fps;
+}
+
+function Dock({ onPlay, playing }: { onPlay: (a: RobotAction) => void; playing: RobotAction | null }) {
   return (
-    <nav className="dock" aria-label="Shape">
-      {robotHeadShapes.map((s) => (
-        <button key={s} className="dock-item" aria-pressed={s === shape} aria-label={shapeLabels[s]} onClick={() => onChange(s)}>
-          <span className="dock-icon">
-            <RobotHead shape={s} size={52} interactive={false} floorShadow={false} antenna={antenna} paused={q.has('paused')} aria-hidden {...colors} />
-          </span>
-          <span className="dock-tip">{shapeLabels[s]}</span>
+    <nav className="dock" aria-label="Actions">
+      {robotActions.map((a) => (
+        <button key={a} className="dock-item" aria-pressed={a === playing} onClick={() => onPlay(a)}>
+          {actionHints[a]}
         </button>
       ))}
     </nav>
@@ -233,53 +242,75 @@ function useCopy() {
   return [copied, copy] as const;
 }
 
+/* the microphone, on demand */
+function useMicrophone() {
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState('');
+  const toggle = async () => {
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      setStream(null);
+      return;
+    }
+    try {
+      setError('');
+      setStream(await navigator.mediaDevices.getUserMedia({ audio: true }));
+    } catch {
+      setError('No microphone');
+    }
+  };
+  useEffect(() => () => stream?.getTracks().forEach((t) => t.stop()), [stream]);
+  return [stream, toggle, error] as const;
+}
+
 export default function App() {
   const [state, setState] = useState<RobotHeadState>((q.get('state') as RobotHeadState) ?? 'idle');
-  const [shape, setShapeState] = useState<RobotHeadShape>((q.get('shape') as RobotHeadShape) ?? 'rectangle');
+  const [expression, setExpression] = useState<RobotExpression | null>((q.get('expression') as RobotExpression) ?? null);
   const [colors, setColors] = useState<Colors>(DEFAULTS);
   const [speed, setSpeed] = useState(1);
-  const [antenna, setAntenna] = useState(!q.has('noantenna'));
   const [paused, setPaused] = useState(q.has('paused'));
+  const [lookAtCode, setLookAtCode] = useState(false);
+  const [playing, setPlaying] = useState<RobotAction | null>(null);
+  const [mic, toggleMic, micError] = useMicrophone();
   const [copied, copy] = useCopy();
   const [theme, toggleTheme] = useTheme();
+  const fps = useFps();
   const size = useStageSize();
-  const setShape = (s: RobotHeadShape) => {
-    setShapeState(s);
-    const u = new URL(location.href);
-    u.searchParams.set('shape', s);
-    history.replaceState(null, '', u);
+  const robot = useRef<RobotHeadHandle>(null);
+  const code = useRef<HTMLDivElement>(null);
+
+  const play = (a: RobotAction) => {
+    setPlaying(a);
+    void robot.current?.play(a).then(() => setPlaying((p) => (p === a ? null : p)));
   };
-  const changed = colors.color !== DEFAULTS.color || colors.trimColor !== DEFAULTS.trimColor || colors.screenColor !== DEFAULTS.screenColor || speed !== 1 || paused || !antenna;
+  const micOn = async () => {
+    await toggleMic();
+    if (!mic) setState('speaking');
+  };
+
+  const changed = colors.color !== DEFAULTS.color || colors.eyeColor !== DEFAULTS.eyeColor || speed !== 1 || paused || expression !== null || lookAtCode;
   const lines: PropLine[] = [
-    { key: 'shape', name: 'shape', value: shape, on: true },
     { key: 'state', name: 'state', value: state, on: true },
+    { key: 'expression', name: 'expression', value: expression ?? '', on: expression !== null },
     { key: 'color', name: 'color', value: colors.color, on: colors.color !== DEFAULTS.color },
-    { key: 'trimColor', name: 'trimColor', value: colors.trimColor, on: colors.trimColor !== DEFAULTS.trimColor },
-    { key: 'screenColor', name: 'screenColor', value: colors.screenColor, on: colors.screenColor !== DEFAULTS.screenColor },
+    { key: 'eyeColor', name: 'eyeColor', value: colors.eyeColor, on: colors.eyeColor !== DEFAULTS.eyeColor },
     { key: 'speed', name: 'speed', value: speed, on: speed !== 1 },
-    { key: 'antenna', name: 'antenna', value: antenna, on: !antenna },
+    { key: 'audio', name: 'audio', value: 'microphone', on: !!mic },
   ];
   const snippet = `<RobotHead\n${lines.filter((l) => l.on).map((l) => `  ${propText(l)}\n`).join('')}/>`;
+  const [said, what] = stateHints[state];
 
   return (
     <div className="app">
-      <Dock shape={shape} onChange={setShape} colors={colors} antenna={antenna} />
+      <Dock onPlay={play} playing={playing} />
 
       <header className="masthead">
         <div className="byline">
           <span className="name">robot-heads</span>
-          <span className="by">by</span>
-          <a className="author" href="https://x.com/fayazara" target="_blank" rel="noopener noreferrer">
-            <img src="https://github.com/fayazara.png?size=64" alt="" width={24} height={24} />
-            Fayaz Ahmed
-          </a>
+          <span className="by">a heavy, gentle robot for your UI</span>
         </div>
         <div className="masthead-end">
-          <button className="install" onClick={() => copy('install', 'npm i robot-heads')}>
-            npm i robot-heads
-            <span className="install-copy">{copied === 'install' ? 'Copied' : 'Copy'}</span>
-          </button>
-          <a className="icon-link" href="https://github.com/fayazara/robot-heads" target="_blank" rel="noopener noreferrer" aria-label="robot-heads on GitHub" title="GitHub">
+          <a className="icon-link" href="https://github.com/leomleao/robot-head" target="_blank" rel="noopener noreferrer" aria-label="Source on GitHub" title="GitHub">
             {/* Icon from Material Design Icons by Pictogrammers - https://github.com/Templarian/MaterialDesign/blob/master/LICENSE */}
             <svg viewBox="0 0 24 24" aria-hidden>
               <path fill="currentColor" d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5c.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34c-.46-1.16-1.11-1.47-1.11-1.47c-.91-.62.07-.6.07-.6c1 .07 1.53 1.03 1.53 1.03c.87 1.52 2.34 1.07 2.91.83c.09-.65.35-1.09.63-1.34c-2.22-.25-4.55-1.11-4.55-4.92c0-1.11.38-2 1.03-2.71c-.1-.25-.45-1.29.1-2.64c0 0 .84-.27 2.75 1.02c.79-.22 1.65-.33 2.5-.33s1.71.11 2.5.33c1.91-1.29 2.75-1.02 2.75-1.02c.55 1.35.2 2.39.1 2.64c.65.71 1.03 1.6 1.03 2.71c0 3.82-2.34 4.66-4.57 4.91c.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2" />
@@ -290,10 +321,22 @@ export default function App() {
       </header>
 
       <main className="stage" aria-label="Preview">
-        <RobotHead shape={shape} state={state} size={size} paused={paused} speed={speed} antenna={antenna} {...colors} />
+        <RobotHead
+          ref={robot}
+          state={state}
+          expression={expression ?? undefined}
+          size={size}
+          paused={paused}
+          speed={speed}
+          audio={mic}
+          lookAt={lookAtCode ? code : null}
+          {...colors}
+        />
         <div className="caption">
-          <h1 className="font-bold">{title(state)}</h1>
-          <p>{stateHints[state]}</p>
+          <h1 className="font-bold">{expression ? title(expression) : title(state)}</h1>
+          <p>
+            <span className="said">“{said}”</span> {what}
+          </p>
         </div>
       </main>
 
@@ -304,12 +347,14 @@ export default function App() {
 
         <div className="control">
           <div className="control-head">
-            <span className="control-label">Antenna</span>
+            <span className="control-label">Expression</span>
+            <span className="control-value">{expression ?? `the state's own`}</span>
           </div>
-          <div className="segments" role="group" aria-label="Antenna">
-            {[true, false].map((v) => (
-              <button key={String(v)} className="segment" aria-pressed={v === antenna} onClick={() => setAntenna(v)}>
-                {v ? 'On' : 'Off'}
+          <div className="chips" role="group" aria-label="Expression">
+            <button className="chip" aria-pressed={expression === null} onClick={() => setExpression(null)}>auto</button>
+            {robotExpressions.map((e) => (
+              <button key={e} className="chip" aria-pressed={e === expression} onClick={() => setExpression(e)}>
+                {e}
               </button>
             ))}
           </div>
@@ -317,8 +362,26 @@ export default function App() {
 
         <div className="control">
           <div className="control-head">
+            <span className="control-label">Lip-sync and gaze</span>
+            <span className="control-value">{micError}</span>
+          </div>
+          <div className="segments" role="group" aria-label="Lip-sync and gaze">
+            <button className="segment" aria-pressed={!!mic} onClick={() => void micOn()}>
+              {mic ? 'Mic on' : 'Microphone'}
+            </button>
+            <button className="segment" aria-pressed={lookAtCode} onClick={() => setLookAtCode(!lookAtCode)}>
+              {lookAtCode ? 'Watching code' : 'Look at code'}
+            </button>
+          </div>
+        </div>
+
+        <div className="control">
+          <div className="control-head">
             <span className="control-label">Speed</span>
-            <button className="text-button" onClick={() => setPaused(!paused)}>{paused ? 'Play' : 'Pause'}</button>
+            <span className="control-actions">
+              <span className="control-value">{fps ? `${fps} fps` : ''}</span>
+              <button className="text-button" onClick={() => setPaused(!paused)}>{paused ? 'Play' : 'Pause'}</button>
+            </span>
           </div>
           <div className="segments" role="group" aria-label="Speed">
             {SPEEDS.map((v) => (
@@ -329,7 +392,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="control">
+        <div className="control" ref={code}>
           <div className="control-head">
             <span className="control-label">Usage</span>
             <span className="control-actions">
@@ -340,8 +403,9 @@ export default function App() {
                 onClick={() => {
                   setColors(DEFAULTS);
                   setSpeed(1);
-                  setAntenna(true);
                   setPaused(false);
+                  setExpression(null);
+                  setLookAtCode(false);
                 }}
               >
                 Reset
@@ -357,13 +421,18 @@ export default function App() {
         {robotHeadStates.map((s) => (
           <button key={s} className="state" aria-pressed={s === state} onClick={() => setState(s)}>
             <span className="state-head">
-              <RobotHead shape={shape} state={s} size={72} paused={paused} speed={speed} antenna={antenna} interactive={false} aria-hidden {...colors} />
+              <RobotHead state={s} size={64} paused={paused} speed={speed} interactive={false} floorShadow={false} aria-hidden {...colors} />
             </span>
             <span className="state-name">{title(s)}</span>
           </button>
         ))}
       </nav>
+
+      <footer className="credits">
+        Head adapted from a sculpt by <a href="https://www.printables.com/model/212558" target="_blank" rel="noopener noreferrer">EMA Labs</a> (
+        <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>) · forked from{' '}
+        <a href="https://github.com/fayazara/robot-heads" target="_blank" rel="noopener noreferrer">robot-heads</a> by Fayaz Ahmed (MIT)
+      </footer>
     </div>
   );
 }
-
