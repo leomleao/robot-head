@@ -19,7 +19,7 @@ function hashSeed(id: string): number {
 const reducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const SHELL: RGB = [62, 52, 56];
+const SHELL: RGB = [60, 55, 63];
 
 /**
  * A heavy, gentle robot head: a dome with a crest, glowing eyes that do

@@ -33,8 +33,7 @@ export const HEAD = {
 
 /* the head's reach at rest, for framing: the top of the crest, the bottom
    of the jaw, the hinge lugs at the sides */
-/* the spike reaches about 0.07 above the sculpt's own crest */
-export const HEAD_TOP = MODEL_BOUNDS[0] - 0.07;
+export const HEAD_TOP = MODEL_BOUNDS[0];
 export const HEAD_BOTTOM = MODEL_BOUNDS[1];
 export const HEAD_SIDE = MODEL_BOUNDS[2];
 
@@ -153,94 +152,13 @@ export interface RobotMeshes {
   jaw: Mesh;
 }
 
-/*
- * The crest's spike: a blade standing on the dome's centre line, rising out
- * of the top and raking back to a point about a sixth of the head's width
- * above it, with a knife edge (two planes meeting at the ridge). Built on
- * the dome's own outline, found from the cranium's vertices near x = 0.
- */
-function spike(cranium: Mesh): Mesh {
-  /* the dome's outline in the middle plane, as radius by angle round its centre;
-     the angle runs from the front (0) over the top (π/2) to the back */
-  const yc = -0.3;
-  const bins = 64;
-  const radius = new Float32Array(bins);
-  const P = cranium.pos;
-  for (let i = 0; i < P.length; i += 3) {
-    if (Math.abs(P[i]) > 0.012) continue;
-    const dy = yc - P[i + 1], dz = P[i + 2];
-    if (dy < -0.02) continue;
-    const a = Math.atan2(dy, dz);
-    const b = Math.round((a / Math.PI) * (bins - 1));
-    if (b < 0 || b >= bins) continue;
-    radius[b] = Math.max(radius[b], Math.hypot(dy, dz));
-  }
-  /* fill the angles no vertex fell in, then smooth: the decimated mesh is sparse */
-  for (let i = 0; i < bins; i++) {
-    if (radius[i] > 0) continue;
-    let lo = i - 1, hi = i + 1;
-    while (lo >= 0 && radius[lo] === 0) lo--;
-    while (hi < bins && radius[hi] === 0) hi++;
-    const a = lo >= 0 ? radius[lo] : radius[hi], b = hi < bins ? radius[hi] : a;
-    radius[i] = lo >= 0 && hi < bins ? a + ((b - a) * (i - lo)) / (hi - lo) : a;
-  }
-  for (let pass = 0; pass < 3; pass++) {
-    const prev = radius.slice();
-    for (let i = 1; i < bins - 1; i++) radius[i] = (prev[i - 1] + 2 * prev[i] + prev[i + 1]) / 4;
-  }
-  const at = (a: number) => {
-    const f = Math.min(bins - 1, Math.max(0, (a / Math.PI) * (bins - 1)));
-    const i = Math.floor(f), j = Math.min(bins - 1, i + 1);
-    const r = radius[i] + (radius[j] - radius[i]) * (f - i);
-    return { y: yc - Math.sin(a) * r, z: Math.cos(a) * r, ny: -Math.sin(a), nz: Math.cos(a) };
-  };
-  const pos: number[] = [], quads: number[] = [], normals: number[] = [], ys: number[] = [];
-  const N = 16;
-  const a0 = 0.4 * Math.PI, a1 = 0.6 * Math.PI;
-  const height = 0.1, width = 0.022;
-  const ridge: number[][] = [], left: number[][] = [], right: number[][] = [];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    const a = a0 + (a1 - a0) * t;
-    const b = at(a);
-    /* rising slowly from the front, to the point at three quarters, then dropping steeply */
-    const h = t < 0.82 ? height * Math.pow(t / 0.82, 1.3) : height * (1 - (t - 0.82) / 0.18);
-    const w = width * Math.sin(Math.PI * Math.min(1, t * 1.15)) ** 0.6;
-    /* raked back: the ridge leans toward the back of the head as it rises */
-    const ty = -Math.cos(a), tz = -Math.sin(a);
-    const lean = h * 0.6;
-    const sink = 0.006;
-    ridge.push([0, b.y + b.ny * h + ty * lean, b.z + b.nz * h + tz * lean]);
-    left.push([-w, b.y - b.ny * sink, b.z - b.nz * sink]);
-    right.push([w, b.y - b.ny * sink, b.z - b.nz * sink]);
-  }
-  const add = (v: number[]) => {
-    pos.push(v[0], v[1], v[2]);
-    return pos.length / 3 - 1;
-  };
-  for (let i = 0; i < N; i++) {
-    for (const side of [left, right]) {
-      const q = [add(side[i]), add(side[i + 1]), add(ridge[i + 1]), add(ridge[i])];
-      quads.push(...q);
-      /* each face looks out to its own side */
-      const ax = side[i + 1][0] - side[i][0], ay = side[i + 1][1] - side[i][1], az = side[i + 1][2] - side[i][2];
-      const bx = ridge[i][0] - side[i][0], by = ridge[i][1] - side[i][1], bz = ridge[i][2] - side[i][2];
-      let n = norm(ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
-      if (n[0] * side[i][0] < 0) n = [-n[0], -n[1], -n[2]];
-      normals.push(...n);
-      ys.push(side[i][1]);
-    }
-  }
-  return { pos: new Float32Array(pos), quads: new Uint16Array(quads), normals: new Float32Array(normals), ys: new Float32Array(ys), mats: new Uint8Array(quads.length / 4).fill(MAT.dark) };
-}
-
 let meshes: RobotMeshes | null = null;
 export function robotMeshes(): RobotMeshes {
   if (!meshes) {
-    const cranium = sculpt(MODEL.head);
     meshes = {
-      cranium,
-      crest: MODEL.crest.pos ? sculpt(MODEL.crest) : spike(cranium),
+      cranium: sculpt(MODEL.head),
+      /* this sculpt's crest is part of its cranium */
+      crest: sculpt(MODEL.crest),
       jaw: sculpt(MODEL.jaw),
     };
     const j = meshes.jaw.pos;

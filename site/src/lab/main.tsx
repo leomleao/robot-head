@@ -12,7 +12,7 @@ import { targetFace } from '../../../src/robot/sim';
 import './lab.css';
 
 const REF = '/@fs/Users/leo/dev/robot-head/inspiration/frames/';
-const SHELL: [number, number, number] = [62, 52, 56];
+const SHELL: [number, number, number] = [60, 55, 63];
 
 function Still({ pose, face, size = 300, shell = SHELL }: { pose: Partial<RobotPose>; face: FaceRig; size?: number; shell?: [number, number, number] }) {
   const ref = useRef<HTMLCanvasElement>(null);

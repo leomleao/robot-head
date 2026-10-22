@@ -17,7 +17,7 @@ export interface Palette {
 export function palette(shell: RGB): Palette {
   const a = linear(shell);
   return {
-    shell: { albedo: a, f0: 0.02, metal: 0.2, spec: 0.03, shininess: 10, rim: 0.4, sheen: 0.15, flat: 0.6 },
+    shell: { albedo: a, f0: 0.02, metal: 0.2, spec: 0.06, shininess: 10, rim: 0.35, sheen: 0.22, flat: 0.45 },
     dark: { albedo: [a[0] * 0.32, a[1] * 0.32, a[2] * 0.32], f0: 0.03, metal: 0.3, spec: 0.06, shininess: 12, rim: 0.3, flat: 0.4 },
     inside: { albedo: [0.006, 0.005, 0.004], f0: 0.02, metal: 0, spec: 0, shininess: 8, rim: 0, sheen: 0.15 },
   };
