@@ -137,6 +137,8 @@ export class RobotSim {
   pose: RobotPose = { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0 };
   /* the pointer, relative to the head's centre in CSS px, or null */
   pointer: { x: number; y: number } | null = null;
+  /* something to look at instead, in the same terms, or null */
+  lookAt: { x: number; y: number } | null = null;
   /* a level from outside (the `mouth` prop, or audio) that drives the jaw, 0–1, or null */
   mouth: number | null = null;
   readonly springs: FaceSprings;
@@ -147,6 +149,8 @@ export class RobotSim {
   private yaw = new Spring();
   private pitch = new Spring();
   private roll = new Spring();
+  /* a bounce: a hop of the head that rings down */
+  private bounce = new Spring();
   private random: () => number;
   private glance = { yaw: 0, pitch: 0, gx: 0, gy: 0 };
   private nextGlance = 0.8;
@@ -157,6 +161,14 @@ export class RobotSim {
   private jaw = new Jaw();
   private nextMumble = 6;
   private mouthLevel = new Spring();
+  /* seconds in the current state */
+  private since = 0;
+  /* which way the head leans while thinking, and when it next changes its mind */
+  private side = 1;
+  private nextSide = 4;
+  /* now and then, idle, the head cocks to one side for a moment: "Hmm?" */
+  private nextTilt = 9;
+  private tiltUntil = -1;
 
   constructor(seed: number, state: RobotHeadState, expression: RobotExpression | undefined, eye: RGB) {
     this.random = rng(seed);
@@ -168,12 +180,19 @@ export class RobotSim {
     this.face = cloneFace(this.target);
     this.nextBlink = 1 + this.random() * 3;
     this.nextMumble = state === 'speaking' ? 0.3 : 3 + this.random() * 4;
+    this.side = this.random() < 0.5 ? 1 : -1;
+    this.nextTilt = 6 + this.random() * 8;
+    const rest = REST[state];
+    this.yaw.x = rest.yaw; this.pitch.x = rest.pitch; this.roll.x = rest.roll;
   }
 
   set(state: RobotHeadState, expression: RobotExpression | undefined, eye: RGB) {
     if (state !== this.state) {
       this.jaw.clear();
+      this.since = 0;
       this.nextMumble = this.time + (state === 'speaking' ? 0.15 : 2 + this.random() * 4);
+      /* happy arrives with a hop */
+      if (state === 'happy') this.bounce.v += 0.9;
     }
     /* the eyes turn red, and back, by the film's steps; waking opens them from a seam */
     const was = this.expression ?? STATE_FACE[this.state], now = expression ?? STATE_FACE[state];
@@ -192,10 +211,11 @@ export class RobotSim {
     this.seq = { name, t: 0 };
   }
 
-  /** A click: a blink, a flash of surprise, a settling nod. */
+  /** A click: a blink, a flash of surprise, a small hop and a settling nod. */
   poke() {
     if (!this.seq) this.play('blink');
     this.surprise = 0;
+    this.bounce.v += 0.5;
     this.pitch.v -= 0.6;
   }
 
@@ -207,6 +227,7 @@ export class RobotSim {
 
   private step(dt: number) {
     this.time += dt;
+    this.since += dt;
     const t = this.time;
     const rand = this.random;
 
@@ -220,26 +241,114 @@ export class RobotSim {
       this.nextGlance = t + 2 + rand() * 3.5;
     }
 
-    let yaw = 0, pitch = 0, roll = 0, gx = 0, gy = 0;
-    if (this.state !== 'sleeping') {
-      yaw = this.glance.yaw;
-      pitch = this.glance.pitch;
-      roll = -this.glance.yaw * 0.12;
-      gx = this.glance.gx;
-      gy = this.glance.gy;
+    /* what this state does with the head, and with the eyes inside it; heavy throughout */
+    let yaw = 0, pitch = 0, roll = 0, gx = 0, gy = 0, lift = 0;
+    let freq = 0.9, damping = 0.75;
+    /* whether the head turns to the pointer in this state */
+    let follows = true;
+    switch (this.state) {
+      case 'idle':
+        yaw = this.glance.yaw;
+        pitch = this.glance.pitch;
+        roll = -this.glance.yaw * 0.12;
+        gx = this.glance.gx;
+        gy = this.glance.gy;
+        if (t > this.nextTilt) {
+          this.tiltUntil = t + 1.4 + rand();
+          this.nextTilt = t + 8 + rand() * 9;
+        }
+        if (t < this.tiltUntil) roll += 0.16 * this.side;
+        break;
+      case 'thinking':
+        /* looking up and to one side, then the other, "Souls don't die" */
+        if (t > this.nextSide) {
+          this.side = -this.side;
+          this.nextSide = t + 3.5 + rand() * 2.5;
+        }
+        yaw = 0.22 * this.side + Math.sin(t * 0.7) * 0.03;
+        pitch = 0.16 + Math.sin(t * 0.9) * 0.02;
+        roll = -0.1 * this.side;
+        gx = 0.4 * this.side;
+        gy = -0.6;
+        freq = 0.7;
+        follows = false;
+        break;
+      case 'searching': {
+        /* a slow sweep, the eyes leading the head */
+        const ph = t * 0.85;
+        yaw = Math.sin(ph) * 0.5;
+        pitch = 0.03 + Math.sin(ph * 2) * 0.03;
+        roll = Math.sin(ph) * -0.05;
+        gx = clamp(Math.sin(ph + 0.7) * 1.1, -1, 1);
+        freq = 1.1;
+        follows = false;
+        break;
+      }
+      case 'listening':
+        /* head cocked toward whoever is talking; the nods come with the mm-hmms */
+        yaw = -0.12;
+        pitch = 0.03;
+        roll = 0.15;
+        gx = -0.3;
+        break;
+      case 'speaking':
+        yaw = Math.sin(t * 0.6) * 0.08;
+        roll = Math.sin(t * 0.45) * 0.04;
+        pitch = 0.02;
+        break;
+      case 'working':
+        /* eyes down on the work, careful, a steady little bob */
+        yaw = Math.sin(t * 0.5) * 0.06;
+        pitch = -0.18;
+        roll = Math.sin(t * 0.35) * 0.03;
+        gy = 0.5;
+        lift = Math.abs(Math.sin(t * 3.1)) * 0.008;
+        follows = false;
+        break;
+      case 'happy':
+        yaw = this.glance.yaw * 0.6;
+        roll = Math.sin(t * 1.6) * 0.07;
+        pitch = 0.04;
+        /* now and then another little hop */
+        if (this.since > 1.2 && rand() < dt * 0.25) this.bounce.v += 0.45;
+        break;
+      case 'error': {
+        /* a slow shake of the head every few seconds, and a droop between */
+        const c = ((this.since + 0.6) % 3.4) / 1.2;
+        yaw = c < 1 ? Math.sin(c * Math.PI * 3) * 0.16 * (1 - c) : 0;
+        pitch = -0.12;
+        roll = -0.05;
+        gy = 0.4;
+        freq = 1.2;
+        follows = false;
+        break;
+      }
+      case 'sleeping':
+        /* drooped, breathing slowly */
+        pitch = -0.3;
+        roll = 0.1;
+        yaw = 0.05;
+        lift = Math.sin(t * 0.9) * 0.012;
+        freq = 0.4;
+        damping = 0.9;
+        follows = false;
+        break;
     }
-    const p = this.pointer;
-    if (p && this.state !== 'sleeping') {
+
+    /* something to look at overrides the state's glances, the pointer only where the state allows */
+    const look = this.state === 'sleeping' ? null : this.lookAt ?? (follows ? this.pointer : null);
+    if (look) {
       /* the eyes lead, the head follows: heavy */
-      gx = clamp(p.x / 160, -1, 1);
-      gy = clamp(p.y / 200, -1, 1);
-      yaw = clamp(p.x / 320, -1, 1) * 0.5;
-      pitch = -clamp(p.y / 320, -1, 1) * 0.26;
-      roll = -yaw * 0.1;
+      gx = clamp(look.x / 160, -1, 1);
+      gy = clamp(look.y / 200, -1, 1);
+      yaw = clamp(look.x / 320, -1, 1) * 0.5;
+      pitch = -clamp(look.y / 320, -1, 1) * 0.26;
+      roll = -yaw * 0.1 + (this.state === 'listening' ? 0.12 : 0);
     }
-    this.yaw.step(yaw, dt, 0.9, 0.75);
-    this.pitch.step(pitch, dt, 0.9, 0.75);
-    this.roll.step(roll, dt, 0.8, 0.8);
+    this.yaw.step(yaw, dt, freq, damping);
+    this.pitch.step(pitch, dt, freq, damping);
+    this.roll.step(roll, dt, freq * 0.9, damping);
+    this.bounce.step(0, dt, 1.7, 0.32);
 
     /* the face */
     targetFace(this.state, this.expression, this.eye, this.target);
@@ -284,10 +393,12 @@ export class RobotSim {
           this.nextMumble = t + 4;
       }
     }
+    if (this.mouth !== null) this.jaw.clear();
     this.jaw.step(dt);
-    /* a level from outside, eased a little so it never chatters */
-    const outside = this.mouth;
-    this.mouthLevel.step(outside === null ? 0 : Math.min(1, Math.max(0, outside)), dt, 9, 0.9);
+    /* a level from outside, eased so it never chatters: quick to open, slower to close */
+    const outside = this.mouth === null ? 0 : clamp(this.mouth, 0, 1);
+    const m = this.mouthLevel;
+    m.step(outside, dt, outside > m.x ? 11 : 6, 0.85);
 
     /* blinks now and then, a double one sometimes */
     if (t > this.nextBlink && this.state !== 'sleeping') {
@@ -298,7 +409,8 @@ export class RobotSim {
     const S = this.springs.face, F = this.face;
     Object.assign(F.left, S.left);
     Object.assign(F.right, S.right);
-    F.jawOpen = S.jawOpen + Math.max(0, this.jaw.spring.x) * 0.85 + Math.max(0, this.mouthLevel.x) * 0.9;
+    const talk = Math.max(0, this.jaw.spring.x) * 0.85 + Math.max(0, m.x) * 0.9;
+    F.jawOpen = S.jawOpen + talk;
     F.jawSmile = S.jawSmile;
     F.yaw = S.yaw; F.pitch = S.pitch; F.roll = S.roll;
     F.color[0] = S.color[0]; F.color[1] = S.color[1]; F.color[2] = S.color[2];
@@ -311,9 +423,23 @@ export class RobotSim {
     }
 
     this.pose.yaw = this.yaw.x;
-    this.pose.pitch = this.pitch.x;
+    /* talking nods the head a touch with each syllable */
+    this.pose.pitch = this.pitch.x - talk * 0.04;
     this.pose.roll = this.roll.x;
-    /* a slow float */
-    this.pose.lift = Math.sin(t * 1.1) * 0.012;
+    /* a slow float, the state's own bob, and any hop */
+    this.pose.lift = Math.sin(t * 1.1) * 0.012 + lift + Math.max(0, this.bounce.x) * 0.25;
   }
 }
+
+/** Each state's pose at rest, for a first frame and for still or reduced-motion heads. */
+export const REST: Record<RobotHeadState, RobotPose> = {
+  idle: { yaw: -0.1, pitch: 0.02, roll: 0.02, x: 0, lift: 0 },
+  thinking: { yaw: 0.22, pitch: 0.16, roll: -0.1, x: 0, lift: 0 },
+  searching: { yaw: 0.3, pitch: 0.03, roll: -0.03, x: 0, lift: 0 },
+  listening: { yaw: -0.12, pitch: 0.03, roll: 0.15, x: 0, lift: 0 },
+  speaking: { yaw: 0.04, pitch: 0.02, roll: 0, x: 0, lift: 0 },
+  working: { yaw: 0, pitch: -0.18, roll: 0, x: 0, lift: 0 },
+  happy: { yaw: 0, pitch: 0.04, roll: 0.05, x: 0, lift: 0 },
+  error: { yaw: 0, pitch: -0.12, roll: -0.05, x: 0, lift: 0 },
+  sleeping: { yaw: 0.05, pitch: -0.3, roll: 0.1, x: 0, lift: 0 },
+};

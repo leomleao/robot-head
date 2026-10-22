@@ -9,6 +9,7 @@ import { RobotHead, robotExpressions, robotHeadStates, type RobotExpression, typ
 import { RobotRenderer, frameFor, palette, type RobotPose } from '../../../src/robot/render';
 import { EXPRESSIONS, SEQUENCES, applySequence, cloneFace, mixFace, sequenceLength, type FaceRig, type SequenceName } from '../../../src/robot/rig';
 import { targetFace } from '../../../src/robot/sim';
+import { listen } from '../../../src/audio';
 import './lab.css';
 
 const REF = '/@fs/Users/leo/dev/robot-head/inspiration/frames/';
@@ -270,7 +271,68 @@ function Strips() {
   );
 }
 
-/* ?only=likeness|rig|live|mouth|gallery|sheet|strips shows one section, so it fits a screenshot */
+/* every state, live, and something to look at */
+function Motion() {
+  const [target, setTarget] = useState<{ x: number; y: number } | null>(null);
+  return (
+    <section onPointerMove={(e) => e.shiftKey && setTarget({ x: e.clientX, y: e.clientY })} onClick={() => setTarget(null)}>
+      <h2>N7 · States (hold shift and move to set a lookAt point; click to clear)</h2>
+      <div className="states">
+        {robotHeadStates.map((st) => (
+          <figure key={st}>
+            <RobotHead size={140} state={st} lookAt={target} interactive={!target} />
+            <figcaption>{st}</figcaption>
+          </figure>
+        ))}
+      </div>
+      {target && <span className="dot" style={{ left: target.x - 6, top: target.y - 6 }} />}
+    </section>
+  );
+}
+
+/* the robot lip-syncing to the film's lines, voice only (dev reference, never shipped) */
+const CLIPS = ["01-blah-blah-blah", "02-rock", "03-rock-question-yes-rock-excited", "04-rock-tree", "05-hmm-question", "06-laugh", "07-bye", "08-superman-first-try", "09-mm-hmm", "10-rockwell-question", "11-rockwell-excited", "12-awww", "13-mmm", "14-hmm-look", "15-dean", "16-art-question", "17-banzai", "18-deer-question", "19-dead-question", "20-but-why", "21-gun", "22-guns-kill", "23-you-die", "24-i-die", "25-soul-question", "26-souls-dont-die", "27-no-atomo", "28-i-superman", "29-no-stop-why", "30-i-not-gun", "31-no-seeing-the-bus", "32-i-am-not-a-gun", "33-no-no-covering-eyes", "34-hogarth-snapping-back", "35-regretful-moan", "36-i-fix", "37-hogarth-you-stay-i-go", "38-no-following", "39-superman-final"];
+const AUDIO = '/@fs/Users/leo/dev/robot-head/inspiration/audio/lines-isolated/';
+
+function Voice() {
+  const [clip, setClip] = useState(CLIPS[36]);
+  const [el, setEl] = useState<HTMLAudioElement | null>(null);
+  const meter = useRef<HTMLSpanElement>(null);
+  /* a meter of what the robot hears */
+  useEffect(() => {
+    if (!el) return;
+    const tap = listen(el);
+    let raf = 0;
+    const tick = () => {
+      const v = tap?.level() ?? 0;
+      if (meter.current) {
+        meter.current.style.width = `${v * 100}%`;
+        meter.current.dataset.v = v.toFixed(3);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      tap?.stop();
+    };
+  }, [el]);
+  return (
+    <section>
+      <h2>N6 · Voice</h2>
+      <div className="row">
+        <RobotHead size={300} state="speaking" audio={el} />
+        <div className="controls">
+          <label>clip <select value={clip} onChange={(e) => setClip(e.target.value)}>{CLIPS.map((c) => <option key={c}>{c}</option>)}</select></label>
+          <audio ref={setEl} src={AUDIO + clip + '.wav'} controls crossOrigin="anonymous" />
+          <span className="meter"><span ref={meter} /></span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ?only=likeness|rig|live|mouth|gallery|sheet|strips|motion|voice shows one section, so it fits a screenshot */
 const only = new URLSearchParams(location.search).get('only');
 
 function Lab() {
@@ -285,6 +347,8 @@ function Lab() {
       {only === 'gallery' && <Gallery />}
       {show('sheet') && <Sheet />}
       {show('strips') && <Strips />}
+      {show('motion') && <Motion />}
+      {show('voice') && <Voice />}
     </main>
   );
 }

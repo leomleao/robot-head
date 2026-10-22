@@ -1,8 +1,9 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, type MouseEvent } from 'react';
+import { listen, type AudioTap } from './audio';
 import type { RobotExpression, RobotHeadProps, RobotHeadState } from './types';
-import { RobotRenderer, REST_POSE, frameFor, palette } from './robot/render';
+import { RobotRenderer, frameFor, palette } from './robot/render';
 import { EXPRESSIONS, EXPRESSION_NAMES, WHITE, type RGB } from './robot/rig';
-import { RobotSim, targetFace } from './robot/sim';
+import { REST, RobotSim, targetFace } from './robot/sim';
 import { parseColor } from './color';
 import { subscribe, pointer } from './ticker';
 
@@ -20,6 +21,17 @@ const reducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const SHELL: RGB = [60, 55, 63];
+
+/* where a `lookAt` points, in page px: a point as given, or an element's middle */
+function lookPoint(at: RobotHeadProps['lookAt']): { x: number; y: number } | null {
+  if (!at) return null;
+  const el = at instanceof Element ? at : 'current' in at ? at.current : null;
+  if (el) {
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  return 'x' in at ? at : null;
+}
 
 /**
  * A heavy, gentle robot head: a dome with a crest, glowing eyes that do
@@ -41,6 +53,8 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
     interactive = true,
     floorShadow = true,
     mouth,
+    audio,
+    lookAt,
     seed,
     className,
     style,
@@ -77,10 +91,32 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
   interactiveRef.current = interactive;
   const shadowRef = useRef(floorShadow);
   shadowRef.current = floorShadow;
+  const lookRef = useRef(lookAt);
+  lookRef.current = lookAt;
+  const mouthRef = useRef<number | null>(null);
+  mouthRef.current = typeof mouth === 'number' && Number.isFinite(mouth) ? mouth : null;
+  const tap = useRef<AudioTap | null>(null);
+
+  /* listen to the audio, if any, for as long as it is given */
+  useEffect(() => {
+    if (!audio) return;
+    let t: AudioTap | null = null;
+    try {
+      t = listen(audio);
+    } catch (err) {
+      /* an element already routed into another AudioContext can't be listened to; the jaw falls back to its own talking */
+      console.warn('robot-heads: could not listen to this audio source', err);
+      t = null;
+    }
+    tap.current = t;
+    return () => {
+      t?.stop();
+      if (tap.current === t) tap.current = null;
+    };
+  }, [audio]);
 
   if (!sim.current) sim.current = new RobotSim(seedValue, stateKey, exprKey, eye);
   sim.current.set(stateKey, exprKey, eye);
-  sim.current.mouth = typeof mouth === 'number' && Number.isFinite(mouth) ? mouth : null;
 
   const frame = frameFor(size);
   const frameRef = useRef(frame);
@@ -102,7 +138,7 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
     if (!renderer.current) renderer.current = new RobotRenderer();
     const s = sim.current!;
     const face = animated ? s.face : targetFace(stateKey, exprKey, eye);
-    renderer.current.draw(ctx, f, dpr, animated ? s.pose : REST_POSE, face, pal.current, { shadow: shadowRef.current });
+    renderer.current.draw(ctx, f, dpr, animated ? s.pose : REST[stateKey], face, pal.current, { shadow: shadowRef.current });
   };
 
   useEffect(() => {
@@ -113,14 +149,21 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
     return subscribe((dt) => {
       const s = sim.current!;
       const el = boxRef.current;
-      if (el && interactiveRef.current && Number.isFinite(pointer.x)) {
-        /* measured from between the eyes at rest */
+      /* points are measured from between the eyes at rest */
+      let eyesX = 0, eyesY = 0;
+      if (el) {
         const box = el.getBoundingClientRect();
         const f = frameRef.current;
-        const dx = pointer.x - (box.left + box.width / 2);
-        const dy = pointer.y - (box.top + f.cy - f.padTop - 0.26 * f.unit);
+        eyesX = box.left + box.width / 2;
+        eyesY = box.top + f.cy - f.padTop - 0.26 * f.unit;
+      }
+      if (el && interactiveRef.current && Number.isFinite(pointer.x)) {
+        const dx = pointer.x - eyesX, dy = pointer.y - eyesY;
         s.pointer = Math.hypot(dx, dy) < 900 ? { x: dx, y: dy } : null;
       } else s.pointer = null;
+      const at = lookPoint(lookRef.current);
+      s.lookAt = el && at ? { x: at.x - eyesX, y: at.y - eyesY } : null;
+      s.mouth = mouthRef.current ?? (tap.current ? tap.current.level() : null);
       s.update(dt * speedRef.current);
       paint(true);
     });

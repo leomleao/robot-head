@@ -1,4 +1,5 @@
-import type { CSSProperties, HTMLAttributes } from 'react';
+import type { CSSProperties, HTMLAttributes, RefObject } from 'react';
+import type { RobotAudioSource } from './audio';
 
 /** What the robot is doing: each state has its own motion and a face to go with it. */
 export type RobotHeadState =
@@ -58,6 +59,14 @@ export interface RobotHeadProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'c
   floorShadow?: boolean;
   /** How open the jaw is, 0–1, for lip-sync from a level you already have. Replaces the procedural talking. */
   mouth?: number;
+  /**
+   * Sound to lip-sync to: a `MediaStream` (a microphone), an `<audio>` or
+   * `<video>` element, or an `AudioNode` in your own graph. The jaw follows
+   * its loudness. An element keeps playing through the speakers.
+   */
+  audio?: RobotAudioSource | null;
+  /** Something to look at instead of the pointer: a point in viewport px, or an element (or a ref to one). */
+  lookAt?: { x: number; y: number } | Element | RefObject<Element | null> | null;
   /** 0–1, offsets the blinks and glances so a row of robots does not move in unison. */
   seed?: number;
   className?: string;

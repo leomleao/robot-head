@@ -21,3 +21,9 @@ hr { border: 0; border-top: 1px solid rgba(255,255,255,.15); width: 100%; }
 .sheet .pair figcaption { flex-basis: 100%; }
 .strip { margin-bottom: 18px; }
 .strip p { margin: 4px 0 0; color: var(--soft); }
+.states { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 30px 12px; padding-top: 30px; }
+.states figure { display: flex; flex-direction: column; align-items: center; gap: 30px; }
+.dot { position: fixed; width: 12px; height: 12px; border-radius: 50%; background: #ffcf6e; pointer-events: none; }
+audio { width: 300px; }
+.meter { display: block; width: 300px; height: 8px; background: rgba(0,0,0,.3); border-radius: 4px; overflow: hidden; }
+.meter span { display: block; height: 100%; width: 0; background: #ffcf6e; }

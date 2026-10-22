@@ -32,7 +32,6 @@ export interface RobotPose {
   lift: number;
 }
 
-export const REST_POSE: RobotPose = { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0 };
 
 export interface RenderOptions {
   shadow: boolean;
