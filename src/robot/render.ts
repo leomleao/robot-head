@@ -5,7 +5,7 @@
    lighting; then the face goes on top: dark sockets, the glow inside them
    cut by the lids, and a bloom that spills onto the shell. */
 
-import { GROOVE, HEAD, HEAD_TOP, MAT, SHOULDER_FRONT, craniumFront, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
+import { HEAD, HEAD_TOP, MAT, SHOULDER_FRONT, craniumFront, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
 import { css, linear, radiance, type Material } from './light';
 import type { EyeRig, FaceRig, RGB } from './rig';
 
@@ -119,8 +119,8 @@ class HeadXform {
   /** A model point on the jaw (before it swings) → screen, through the hinge then the head. */
   jaw(x: number, y: number, z: number, out: Float32Array, o: number) {
     const J = this.J;
-    const hy = y - HEAD.hingeY;
-    this.head(x, HEAD.hingeY + J[4] * hy + J[5] * z, J[7] * hy + J[8] * z, out, o);
+    const hy = y - HEAD.hingeY, hz = z - HEAD.hingeZ;
+    this.head(x, HEAD.hingeY + J[4] * hy + J[5] * hz, HEAD.hingeZ + J[7] * hy + J[8] * hz, out, o);
   }
   /** A normal on the head → world. */
   normal(nx: number, ny: number, nz: number, out: V3) {
@@ -141,6 +141,16 @@ interface Projected {
   scr: Float32Array;
   jaw: boolean;
 }
+
+/* how far forward the crest's quads sort (a sum over four corners) */
+const CREST_BIAS = 0.1;
+
+/* the face round each eye faces a little out and up from the round of the head */
+const EYE_NORMAL_R: V3 = (() => {
+  const l = Math.hypot(0.3, 0.16, 1);
+  return [0.3 / l, -0.16 / l, 1 / l];
+})();
+const EYE_NORMAL_L: V3 = [-EYE_NORMAL_R[0], EYE_NORMAL_R[1], EYE_NORMAL_R[2]];
 
 /* how far the body is tipped toward us, radians */
 const BODY_VIEW = -0.16;
@@ -195,7 +205,7 @@ export class RobotRenderer {
   private setup() {
     if (this.proj.length) return;
     const m = robotMeshes();
-    const list: Array<[Mesh, boolean]> = [[m.cranium, false], [m.crest, false], [m.jaw, true], [m.arms, true], [m.lugs, false]];
+    const list: Array<[Mesh, boolean]> = [[m.cranium, false], [m.crest, false], [m.jaw, true]];
     this.proj = list.map(([mesh, jaw]) => ({ mesh, scr: new Float32Array(mesh.pos.length), jaw }));
     const total = list.reduce((n, [mesh]) => n + mesh.quads.length / 4, 0);
     this.zs = new Float32Array(total);
@@ -344,13 +354,12 @@ export class RobotRenderer {
       }
     }
 
-    /* the arm and lug on the far side go first, the near ones last */
-    const nearRight = X.R[6] > 0;
-
     /* the inside of the mouth, behind everything else on the head */
     this.drawMouth(ctx, face, pal);
 
-    /* every visible quad of the cranium, crest and jaw, back to front */
+    /* every visible quad of the cranium, crest and jaw, back to front; the
+       crest sits in a slot, so it is nudged forward to win against the
+       slot's own walls */
     let count = 0;
     const N = this.nrm;
     for (let pi = 0; pi < 3; pi++) {
@@ -361,7 +370,7 @@ export class RobotRenderer {
         else X.normal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
         if (N[2] < -0.04) continue;
         const s = p.scr;
-        this.zs[count] = s[quads[q * 4] * 3 + 2] + s[quads[q * 4 + 1] * 3 + 2] + s[quads[q * 4 + 2] * 3 + 2] + s[quads[q * 4 + 3] * 3 + 2];
+        this.zs[count] = s[quads[q * 4] * 3 + 2] + s[quads[q * 4 + 1] * 3 + 2] + s[quads[q * 4 + 2] * 3 + 2] + s[quads[q * 4 + 3] * 3 + 2] + (pi === 1 ? CREST_BIAS : 0);
         this.owner[count] = pi;
         this.order[count] = q;
         count++;
@@ -373,15 +382,27 @@ export class RobotRenderer {
 
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(0.6, U / 300);
-    this.drawSide(ctx, pal, !nearRight);
     for (const i of idx) this.fillQuad(ctx, this.proj[this.owner[i]], this.order[i], pal);
 
-    this.drawSeams(ctx, pal);
-    this.drawGroove(ctx);
     this.drawEye(ctx, face.right, face, -1, pal);
     this.drawEye(ctx, face.left, face, 1, pal);
-    this.drawSide(ctx, pal, nearRight);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  /* one part alone, back to front */
+  private drawPart(ctx: CanvasRenderingContext2D, p: Projected, pal: Palette) {
+    const { quads, normals } = p.mesh;
+    const N = this.nrm;
+    const items: Array<[number, number]> = [];
+    for (let q = 0; q < quads.length / 4; q++) {
+      if (p.jaw) this.x.jawNormal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
+      else this.x.normal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
+      if (N[2] < -0.04) continue;
+      const s = p.scr;
+      items.push([s[quads[q * 4] * 3 + 2] + s[quads[q * 4 + 1] * 3 + 2] + s[quads[q * 4 + 2] * 3 + 2], q]);
+    }
+    items.sort((a, b) => a[0] - b[0]);
+    for (const [, q] of items) this.fillQuad(ctx, p, q, pal);
   }
 
   private fillQuad(ctx: CanvasRenderingContext2D, p: Projected, q: number, pal: Palette) {
@@ -408,27 +429,6 @@ export class RobotRenderer {
     ctx.stroke();
   }
 
-  /* one side's jaw arm and lug, back to front */
-  private drawSide(ctx: CanvasRenderingContext2D, pal: Palette, right: boolean) {
-    for (const pi of [3, 4]) {
-      const p = this.proj[pi];
-      const { quads, normals, pos } = p.mesh;
-      const items: Array<[number, number]> = [];
-      for (let q = 0; q < quads.length / 4; q++) {
-        if ((pos[quads[q * 4] * 3] > 0) !== right) continue;
-        const N = this.nrm;
-        if (p.jaw) this.x.jawNormal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
-        else this.x.normal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
-        if (N[2] < -0.02) continue;
-        let z = 0;
-        for (let k = 0; k < 4; k++) z += p.scr[quads[q * 4 + k] * 3 + 2];
-        items.push([z, q]);
-      }
-      items.sort((a, b) => a[0] - b[0]);
-      for (const [, q] of items) this.fillQuad(ctx, p, q, pal);
-    }
-  }
-
   /* the dark inside of the mouth, and the teeth along the top of it */
   private drawMouth(ctx: CanvasRenderingContext2D, face: FaceRig, pal: Palette) {
     void pal;
@@ -437,13 +437,13 @@ export class RobotRenderer {
     ctx.beginPath();
     const steps = 12;
     for (let i = 0; i <= steps; i++) {
-      const x = -HEAD.a * 0.97 + (i / steps) * HEAD.a * 1.94;
+      const x = -HEAD.r * 0.97 + (i / steps) * HEAD.r * 1.94;
       X.head(x, -0.02, craniumFront(x * 0.98, -0.01).z - 0.01, pt, 0);
       if (i) ctx.lineTo(pt[0], pt[1]);
       else ctx.moveTo(pt[0], pt[1]);
     }
     for (let i = steps; i >= 0; i--) {
-      const x = -HEAD.a * 0.97 + (i / steps) * HEAD.a * 1.94;
+      const x = -HEAD.r * 0.97 + (i / steps) * HEAD.r * 1.94;
       X.head(x, 0.2, craniumFront(x * 0.98, -0.01).z - 0.03, pt, 0);
       ctx.lineTo(pt[0], pt[1]);
     }
@@ -455,8 +455,8 @@ export class RobotRenderer {
       ctx.globalAlpha = Math.min(1, face.teeth);
       const n = 9;
       for (let i = 0; i < n; i++) {
-        const x0 = -HEAD.a * 0.78 + (i / n) * HEAD.a * 1.56 + 0.006;
-        const x1 = x0 + (HEAD.a * 1.56) / n - 0.012;
+        const x0 = -HEAD.r * 0.78 + (i / n) * HEAD.r * 1.56 + 0.006;
+        const x1 = x0 + (HEAD.r * 1.56) / n - 0.012;
         ctx.beginPath();
         const z = (x: number) => craniumFront(x, -0.01).z - 0.012;
         X.head(x0, 0, z(x0), pt, 0); ctx.moveTo(pt[0], pt[1]);
@@ -471,60 +471,6 @@ export class RobotRenderer {
     }
   }
 
-  /* the crest's groove down the forehead: a dark slit, wide at the top, coming to a point */
-  private drawGroove(ctx: CanvasRenderingContext2D) {
-    const X = this.x, pt = this.pt;
-    const N = this.nrm;
-    X.normal(0, 0, 1, N);
-    if (N[2] < 0.02) return;
-    ctx.beginPath();
-    for (let i = 0; i < GROOVE.length; i++) {
-      const [w, y] = GROOVE[i];
-      X.head(-w, y, craniumFront(-w, y).z + 0.001, pt, 0);
-      if (i) ctx.lineTo(pt[0], pt[1]);
-      else ctx.moveTo(pt[0], pt[1]);
-    }
-    for (let i = GROOVE.length - 1; i >= 0; i--) {
-      const [w, y] = GROOVE[i];
-      X.head(w, y, craniumFront(w, y).z + 0.001, pt, 0);
-      ctx.lineTo(pt[0], pt[1]);
-    }
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(8,7,6,0.82)';
-    ctx.fill();
-  }
-
-  /* the panel seams down the front of the jaw */
-  private drawSeams(ctx: CanvasRenderingContext2D, pal: Palette) {
-    void pal;
-    const X = this.x, pt = this.pt;
-    const N = this.nrm;
-    X.jawNormal(0, 0, 1, N);
-    if (N[2] < 0.05) return;
-    ctx.lineCap = 'round';
-    for (const sx of [-0.16, 0.16]) {
-      const x = sx;
-      const zf = HEAD.jawC * Math.pow(1 - Math.pow(Math.abs(x) / HEAD.jawA, 3), 1 / 3) + 0.001;
-      ctx.beginPath();
-      X.jaw(x, HEAD.jawTop + 0.075, zf, pt, 0); ctx.moveTo(pt[0], pt[1]);
-      X.jaw(x, HEAD.jawBottom - 0.035, zf, pt, 0); ctx.lineTo(pt[0], pt[1]);
-      ctx.lineWidth = Math.max(0.6, X.U * 0.005);
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.stroke();
-    }
-    /* the line across the jaw's front below the lip */
-    ctx.beginPath();
-    for (let i = 0; i <= 10; i++) {
-      const x = -0.16 + (i / 10) * 0.32;
-      const zf = HEAD.jawC * Math.pow(1 - Math.pow(Math.abs(x) / HEAD.jawA, 3), 1 / 3) + 0.001;
-      X.jaw(x, HEAD.jawTop + 0.075, zf, pt, 0);
-      if (i) ctx.lineTo(pt[0], pt[1]);
-      else ctx.moveTo(pt[0], pt[1]);
-    }
-    ctx.strokeStyle = 'rgba(0,0,0,0.38)';
-    ctx.stroke();
-  }
-
   /*
    * One eye, drawn in its own patch of the face: the patch's tangent plane
    * is mapped to the screen, so everything inside is drawn in head units
@@ -532,8 +478,8 @@ export class RobotRenderer {
    */
   private drawEye(ctx: CanvasRenderingContext2D, e: EyeRig, face: FaceRig, side: number, pal: Palette) {
     const X = this.x, pt = this.pt;
-    const ex = side * HEAD.eyeX, ey = HEAD.eyeY;
-    const { z, n } = craniumFront(ex, ey);
+    const ex = side * HEAD.eyeX, ey = HEAD.eyeY, z = HEAD.eyeZ;
+    const n = side < 0 ? EYE_NORMAL_L : EYE_NORMAL_R;
     const N = this.nrm;
     X.normal(n[0], n[1], n[2], N);
     if (N[2] < 0.08) return;

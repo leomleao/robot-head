@@ -4,41 +4,36 @@
    projected orthographically; the shoulders never turn, so they are drawn
    once per size and reused.
 
-   The cranium is a sweep: a rounded-square section (a superellipse) whose
-   scale follows a profile, straight-sided below the eyes and a dome above.
-   The jaw is a larger sweep below it, a bucket that hangs from two arms
-   hinged at lugs on the sides of the head, so opening it swings the chin
-   down and back. A blade runs over the dome and down the forehead, and the
-   top of the dome carries a dent. */
+   The head, its jaw and the crest come from a sculpt (see model.ts),
+   decimated to a few thousand triangles: a domed cranium round in section
+   with a slot over the top for the crest, and a jaw like a bucket hanging
+   from two arms pinned at the back of the head, so opening it swings the
+   chin down and back. Triangles are stored as quads repeating their last
+   vertex. The neck, collar and shoulders are built here. */
+
+import { MODEL, MODEL_EYES, MODEL_HINGE, MODEL_Q } from './model';
 
 export type V3 = [number, number, number];
 
-/* the head's measurements, from stills of the original at rest */
+/* the head's measurements in head units */
 export const HEAD = {
-  /* the cranium's half width and half depth, and the section's squareness */
-  a: 0.3,
-  c: 0.29,
-  n: 3,
-  /* straight sides up to `straight`, then a dome of height `dome` */
-  straight: 0.19,
-  dome: 0.29,
+  /* the cranium's radius below the dome */
+  r: 0.299,
   /* the eyes: centres, the socket's radius, the glow's share of it */
-  eyeX: 0.135,
-  eyeY: -0.27,
-  socket: 0.093,
+  eyeX: MODEL_EYES[1][0],
+  eyeY: MODEL_EYES[1][1],
+  eyeZ: MODEL_EYES[1][2],
+  socket: MODEL_EYES[1][3],
   glow: 0.6,
-  /* the jaw: a bucket from just under the mouth line to the chin, hinged at the lugs */
-  jawA: 0.316,
-  jawC: 0.302,
-  jawTop: 0.03,
-  jawBottom: 0.27,
-  hingeY: -0.11,
+  /* the jaw's hinge pins */
+  hingeY: MODEL_HINGE[0],
+  hingeZ: MODEL_HINGE[1],
   /* where the head turns: inside the jaw, at the top of the neck */
-  pivot: 0.24,
+  pivot: 0.2,
 } as const;
 
-/* the top of the crest's spike, for framing */
-export const HEAD_TOP = -(HEAD.straight + HEAD.dome) - 0.045;
+/* the top of the crest, for framing */
+export const HEAD_TOP = -0.545;
 
 export interface Mesh {
   /* x, y, z per vertex */
@@ -113,42 +108,6 @@ class Builder {
   }
 }
 
-/* a point on a superellipse of exponent n, at angle t */
-function superPoint(t: number, n: number): [number, number] {
-  const c = Math.cos(t), s = Math.sin(t);
-  const e = 2 / n;
-  return [Math.sign(c) * Math.pow(Math.abs(c), e), Math.sign(s) * Math.pow(Math.abs(s), e)];
-}
-
-interface Ring {
-  y: number;
-  /* the section's half width and half depth */
-  sx: number;
-  sz: number;
-  /* the section's centre, front to back */
-  z?: number;
-}
-
-/**
- * Rings of a superellipse section stacked along y, stitched into quads.
- * Each end closes to a point when its ring has no size.
- */
-function sweep(b: Builder, rings: Ring[], n: number, samples: number, mat: (k: number) => number = () => MAT.shell) {
-  const base = b.pos.length / 3;
-  for (const r of rings) {
-    for (let j = 0; j < samples; j++) {
-      const [px, pz] = superPoint((j / samples) * TAU, n);
-      b.vertex(px * r.sx, r.y, (r.z ?? 0) + pz * r.sz);
-    }
-  }
-  for (let k = 0; k < rings.length - 1; k++) {
-    for (let j = 0; j < samples; j++) {
-      const j2 = (j + 1) % samples;
-      b.quad(base + k * samples + j, base + k * samples + j2, base + (k + 1) * samples + j2, base + (k + 1) * samples + j, mat(k));
-    }
-  }
-}
-
 /** A solid of revolution about a vertical axis: `profile` is [radius, y] from top to bottom. */
 function lathe(b: Builder, profile: Array<[number, number]>, segments: number, cx = 0, cz = 0, mat: number = MAT.shell) {
   const base = b.pos.length / 3;
@@ -180,22 +139,31 @@ function box(b: Builder, c: V3, h: V3, mat: number = MAT.shell) {
   b.quad(v[1], v[3], v[7], v[5], mat); /* right */
 }
 
-/* ── the cranium ─────────────────────────────────────────────────────── */
+/* ── the head, from the sculpt ───────────────────────────────────────── */
 
-/** The cranium's section scale at height y: 1 on the straight sides, falling to 0 over the dome. */
-export function craniumScale(y: number): number {
-  const u = (-y - HEAD.straight) / HEAD.dome;
-  if (u <= 0) return 1;
-  if (u >= 1) return 0;
-  return Math.pow(1 - Math.pow(u, 2.6), 1 / 2.6);
+/* the cranium's radius at each height, measured off the sculpt: round in
+   section, straight up to the eyes, then the dome */
+const PROFILE: Array<[number, number]> = [
+  [0.02, 0.299], [-0.283, 0.299], [-0.354, 0.26], [-0.424, 0.217], [-0.467, 0.176], [-0.495, 0.133], [-0.512, 0.09], [-0.521, 0],
+];
+
+function craniumRadius(y: number): number {
+  if (y >= PROFILE[0][0]) return PROFILE[0][1];
+  for (let i = 1; i < PROFILE.length; i++) {
+    const [y1, r1] = PROFILE[i];
+    if (y >= y1) {
+      const [y0, r0] = PROFILE[i - 1];
+      return r0 + ((y - y0) / (y1 - y0)) * (r1 - r0);
+    }
+  }
+  return 0;
 }
 
 /** Where the cranium's front surface is at (x, y), and its outward normal there. */
 export function craniumFront(x: number, y: number): { z: number; n: V3 } {
   const f = (xx: number, yy: number) => {
-    const s = craniumScale(yy);
-    const u = Math.min(1, Math.abs(xx) / Math.max(1e-4, HEAD.a * s));
-    return HEAD.c * s * Math.pow(1 - Math.pow(u, HEAD.n), 1 / HEAD.n);
+    const r = craniumRadius(yy);
+    return Math.sqrt(Math.max(0, r * r - xx * xx));
   };
   const z = f(x, y);
   const e = 0.002;
@@ -204,151 +172,52 @@ export function craniumFront(x: number, y: number): { z: number; n: V3 } {
   return { z, n: norm(-dzdx, -dzdy, 1) };
 }
 
-/* the dent: a shallow dish pressed into the top of the dome, on the viewer's right */
-const DENT = { x: 0.17, y: -0.41, r: 0.085, depth: 0.028 };
+const decode = (b64: string) => {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+};
 
-function cranium(): Mesh {
-  const b = new Builder();
-  const rings: Ring[] = [];
-  /* a flat underside, then the straight sides, then the dome closing to a point */
-  rings.push({ y: 0, sx: 0.0001, sz: 0.0001 });
-  rings.push({ y: 0, sx: HEAD.a * 0.94, sz: HEAD.c * 0.94 });
-  rings.push({ y: -0.006, sx: HEAD.a, sz: HEAD.c });
-  for (let i = 1; i <= 6; i++) {
-    const y = -0.006 - (i / 6) * (HEAD.straight - 0.006);
-    rings.push({ y, sx: HEAD.a, sz: HEAD.c });
+/* one part of the sculpt, as quads */
+function sculpt(part: { pos: string; tri: string; nrm: string; mat: string }): Mesh {
+  const p16 = new Int16Array(decode(part.pos));
+  const tri = new Uint16Array(decode(part.tri));
+  const n8 = new Int8Array(decode(part.nrm));
+  const mats = new Uint8Array(decode(part.mat));
+  const pos = new Float32Array(p16.length);
+  for (let i = 0; i < p16.length; i++) pos[i] = p16[i] / MODEL_Q;
+  const nt = tri.length / 3;
+  const quads = new Uint16Array(nt * 4);
+  const normals = new Float32Array(nt * 3);
+  const ys = new Float32Array(nt);
+  for (let t = 0; t < nt; t++) {
+    const a = tri[t * 3], b = tri[t * 3 + 1], c = tri[t * 3 + 2];
+    quads[t * 4] = a; quads[t * 4 + 1] = b; quads[t * 4 + 2] = c; quads[t * 4 + 3] = c;
+    const [nx, ny, nz] = norm(n8[t * 3], n8[t * 3 + 1], n8[t * 3 + 2]);
+    normals[t * 3] = nx; normals[t * 3 + 1] = ny; normals[t * 3 + 2] = nz;
+    ys[t] = (pos[a * 3 + 1] + pos[b * 3 + 1] + pos[c * 3 + 1]) / 3;
   }
-  const steps = 22;
-  for (let i = 1; i <= steps; i++) {
-    const u = i / steps;
-    /* finer toward the top, where the dome turns fastest */
-    const uu = 1 - Math.pow(1 - u, 1.4);
-    const y = -HEAD.straight - uu * HEAD.dome;
-    const s = i === steps ? 0.0001 : craniumScale(y);
-    rings.push({ y, sx: HEAD.a * s, sz: HEAD.c * s });
-  }
-  sweep(b, rings, HEAD.n, 88, (k) => (k === 0 ? MAT.inside : MAT.shell));
-  /* press the dent in */
-  const P = b.pos;
-  for (let i = 0; i < P.length; i += 3) {
-    const dx = P[i] - DENT.x, dy = P[i + 1] - DENT.y;
-    const d2 = (dx * dx + dy * dy) / (DENT.r * DENT.r);
-    if (d2 >= 1 || P[i + 2] < -0.05) continue;
-    const k = DENT.depth * (1 - d2) * (1 - d2);
-    /* inward, along the line to the dome's centre */
-    const [ux, uy, uz] = norm(P[i], P[i + 1] + HEAD.straight, P[i + 2]);
-    P[i] -= ux * k; P[i + 1] -= uy * k; P[i + 2] -= uz * k;
-  }
-  return b.finish((_x, y) => [0, Math.min(-0.05, Math.max(y, -HEAD.straight - 0.05)), 0]);
+  return { pos, quads, normals, ys, mats };
 }
-
-/* ── the crest ───────────────────────────────────────────────────────── */
 
 /*
- * The blade over the top of the dome: it rises out of the shell part way
- * up the front, runs over the top growing taller, and ends in a spike a
- * little behind it. (Down the forehead the crest is a groove, drawn with
- * the face.) Each flank is a strip of quads.
+ * The jaw's top edge bends for a smile: the front of the band, near its
+ * top, rises at the corners (and falls for a frown), most at the corners
+ * and not at all at the middle or round the back.
  */
-function crest(): Mesh {
-  const b = new Builder();
-  const N = 14;
-  const left: number[] = [], right: number[] = [], ridge: number[] = [];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    const phi = (0.42 + t * 0.72) * (Math.PI / 2);
-    const top = Math.min(phi, Math.PI / 2);
-    const y = -HEAD.straight - Math.sin(top) * HEAD.dome;
-    const z = Math.cos(phi) * HEAD.c;
-    const [nx, ny, nz] = norm(0, -Math.sin(phi) * HEAD.c, Math.cos(phi) * HEAD.dome);
-    /* the blade's height and half thickness grow toward the spike */
-    const h = 0.002 + Math.pow(t, 1.6) * 0.05;
-    const w = 0.003 + t * 0.012;
-    const sink = 0.008;
-    left.push(b.vertex(-w, y - ny * sink, z - nz * sink));
-    right.push(b.vertex(w, y - ny * sink, z - nz * sink));
-    ridge.push(b.vertex(nx, y + ny * h, z + nz * h));
-  }
-  for (let i = 0; i < N; i++) {
-    b.quad(left[i], left[i + 1], ridge[i + 1], ridge[i]);
-    b.quad(ridge[i], ridge[i + 1], right[i + 1], right[i]);
-  }
-  b.quad(left[N], ridge[N], right[N], right[N]);
-  return b.finish((x, y, z) => [x * 0.5, y + 0.05, z - 0.05]);
-}
-
-/** The groove down the forehead, as [x half width, y] from its top to its point, on the front surface. */
-export const GROOVE: Array<[number, number]> = [
-  [0.024, -0.45], [0.022, -0.41], [0.019, -0.37], [0.016, -0.33], [0.012, -0.29], [0.008, -0.255], [0.0035, -0.225], [0, -0.205],
-];
-
-/* ── the jaw ─────────────────────────────────────────────────────────── */
-
-/*
- * The jaw's rings are rebuilt each frame from the smile: the front of its
- * top edge rises at the corners for a smile and falls for a frown. Only
- * the top ring moves, so the mesh is built once with its top ring at rest
- * and `shapeJaw` writes the top ring in place.
- */
-export const JAW_SAMPLES = 56;
-
-function jaw(): Mesh {
-  const b = new Builder();
-  const rings: Ring[] = [
-    { y: HEAD.jawTop, sx: 0.0001, sz: 0.0001 },
-    { y: HEAD.jawTop, sx: HEAD.jawA * 0.9, sz: HEAD.jawC * 0.9 },
-    { y: HEAD.jawTop, sx: HEAD.jawA, sz: HEAD.jawC },
-  ];
-  const body = HEAD.jawBottom - HEAD.jawTop - 0.06;
-  for (let i = 1; i <= 5; i++) {
-    const t = i / 5;
-    /* the bucket narrows a little toward the chin */
-    const s = 1 - 0.05 * t * t;
-    rings.push({ y: HEAD.jawTop + t * body, sx: HEAD.jawA * s, sz: HEAD.jawC * s });
-  }
-  /* a rolled bottom edge */
-  for (let i = 1; i <= 5; i++) {
-    const t = (i / 5) * (Math.PI / 2);
-    const s = 0.95 - (1 - Math.cos(t)) * 0.2;
-    rings.push({ y: HEAD.jawBottom - 0.06 + Math.sin(t) * 0.06, sx: HEAD.jawA * s, sz: HEAD.jawC * s });
-  }
-  rings.push({ y: HEAD.jawBottom, sx: 0.0001, sz: 0.0001 });
-  /* the top face is the inside of the mouth: dark */
-  sweep(b, rings, 3, JAW_SAMPLES, (k) => (k < 2 ? MAT.inside : MAT.shell));
-  return b.finish((_x, y) => [0, Math.min(HEAD.jawBottom - 0.06, Math.max(y, HEAD.jawTop + 0.06)), 0]);
-}
-
-/** Write the jaw's top edge for a smile (−1 frown … 1 smile), into `pos` (a copy of the mesh's). */
+let jawTop = 0;
 export function shapeJaw(rest: Float32Array, pos: Float32Array, smile: number) {
   pos.set(rest);
-  /* rings 1 and 2 are the top edge (ring 0 is the centre of the top face) */
-  for (const ring of [1, 2]) {
-    for (let j = 0; j < JAW_SAMPLES; j++) {
-      const i = (ring * JAW_SAMPLES + j) * 3;
-      const x = rest[i] / HEAD.jawA, z = rest[i + 2] / HEAD.jawC;
-      /* only the front of the edge bends, and most at the corners */
-      const front = Math.max(0, z);
-      pos[i + 1] = rest[i + 1] - smile * 0.1 * x * x * front;
-    }
+  if (Math.abs(smile) < 1e-3) return;
+  for (let i = 0; i < rest.length; i += 3) {
+    const x = rest[i], y = rest[i + 1], z = rest[i + 2];
+    if (z < 0.05) continue;
+    const near = 1 - Math.min(1, Math.max(0, (y - jawTop) / 0.05));
+    if (near <= 0) continue;
+    const across = Math.min(1, Math.abs(x) / 0.29);
+    pos[i + 1] = y - smile * 0.075 * across * across * near * Math.min(1, z / 0.15);
   }
-}
-
-/* the arms the jaw hangs from, and the lugs they pivot on */
-function jawArms(): Mesh {
-  const b = new Builder();
-  for (const s of [-1, 1]) {
-    const x = s * (HEAD.jawA + 0.002);
-    box(b, [x, (HEAD.hingeY - 0.045 + HEAD.jawTop + 0.12) / 2, 0], [0.012, (HEAD.jawTop + 0.12 - HEAD.hingeY + 0.045) / 2, 0.062]);
-  }
-  return b.finish((x, y) => [x * 0.6, y, 0]);
-}
-
-function lugs(): Mesh {
-  const b = new Builder();
-  for (const s of [-1, 1]) {
-    box(b, [s * (HEAD.jawA + 0.022), HEAD.hingeY, 0], [0.012, 0.03, 0.034]);
-  }
-  return b.finish((x, y) => [x * 0.85, y, 0]);
 }
 
 /* ── neck and shoulders ──────────────────────────────────────────────── */
@@ -446,8 +315,6 @@ export interface RobotMeshes {
   cranium: Mesh;
   crest: Mesh;
   jaw: Mesh;
-  arms: Mesh;
-  lugs: Mesh;
   neck: Mesh;
   collar: Mesh;
   shoulders: Mesh;
@@ -458,16 +325,17 @@ let meshes: RobotMeshes | null = null;
 export function robotMeshes(): RobotMeshes {
   if (!meshes) {
     meshes = {
-      cranium: cranium(),
-      crest: crest(),
-      jaw: jaw(),
-      arms: jawArms(),
-      lugs: lugs(),
+      cranium: sculpt(MODEL.head),
+      crest: sculpt(MODEL.crest),
+      jaw: sculpt(MODEL.jaw),
       neck: neck(),
       collar: collar(),
       shoulders: shoulders(),
       chest: chest(),
     };
+    const j = meshes.jaw.pos;
+    jawTop = Infinity;
+    for (let i = 0; i < j.length; i += 3) if (j[i + 2] > 0.15 && Math.abs(j[i]) < 0.1) jawTop = Math.min(jawTop, j[i + 1]);
   }
   return meshes;
 }
