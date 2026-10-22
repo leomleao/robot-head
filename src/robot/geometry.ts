@@ -19,10 +19,11 @@ export const HEAD = {
   /* the cranium's radius at the mouth line */
   r: MODEL_PROFILE[0][1],
   /* the eyes: centres, the socket's radius, the glow's share of it */
-  eyeX: MODEL_EYES[1][0],
+  /* a little wider apart and larger than the sculpt's bowls, as in the film: 0.49 and 0.32 of the cranium's width */
+  eyeX: 0.147,
   eyeY: MODEL_EYES[1][1],
   eyeZ: MODEL_EYES[1][2],
-  socket: MODEL_EYES[1][3],
+  socket: 0.1,
   glow: 0.75,
   /* the jaw's hinge pins */
   hingeY: MODEL_HINGE[0],
@@ -152,6 +153,9 @@ export interface RobotMeshes {
   jaw: Mesh;
 }
 
+/** The jaw's flat front panel: its half width, how far forward it stands, its top and bottom. */
+export const JAW_PANEL = { x: 0, z: 0, top: 0, bottom: 0 };
+
 let meshes: RobotMeshes | null = null;
 export function robotMeshes(): RobotMeshes {
   if (!meshes) {
@@ -162,6 +166,17 @@ export function robotMeshes(): RobotMeshes {
       jaw: sculpt(MODEL.jaw),
     };
     const j = meshes.jaw.pos;
+    /* the flat front panel: the jaw's vertices that reach (almost) furthest forward */
+    let front = -Infinity;
+    for (let i = 0; i < j.length; i += 3) front = Math.max(front, j[i + 2]);
+    let xs = 0, top = Infinity, bottom = -Infinity;
+    for (let i = 0; i < j.length; i += 3) {
+      if (j[i + 2] < front - 0.004) continue;
+      xs = Math.max(xs, Math.abs(j[i]));
+      top = Math.min(top, j[i + 1]);
+      bottom = Math.max(bottom, j[i + 1]);
+    }
+    JAW_PANEL.x = xs; JAW_PANEL.z = front; JAW_PANEL.top = top; JAW_PANEL.bottom = bottom;
     jawTop = Infinity;
     for (let i = 0; i < j.length; i += 3) if (j[i + 2] > 0.15 && Math.abs(j[i]) < 0.1) jawTop = Math.min(jawTop, j[i + 1]);
   }

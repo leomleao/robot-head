@@ -4,7 +4,7 @@
    sockets, the glow inside them cut by the lids, and a bloom that spills
    onto the shell. A soft shadow on the floor sits under it. */
 
-import { HEAD, HEAD_BOTTOM, HEAD_SIDE, HEAD_TOP, MAT, craniumFront, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
+import { HEAD, HEAD_BOTTOM, HEAD_SIDE, HEAD_TOP, JAW_PANEL, MAT, craniumFront, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
 import { css, linear, radiance, type Material } from './light';
 import type { EyeRig, FaceRig, RGB } from './rig';
 
@@ -304,6 +304,7 @@ export class RobotRenderer {
     ctx.lineWidth = Math.max(0.6, U / 300);
     for (const i of idx) this.fillQuad(ctx, this.proj[this.owner[i]], this.order[i], pal);
     this.drawTeeth(ctx, face, pal);
+    this.drawSeams(ctx, U);
 
     /* the ink: the head's silhouette in a dark line, as drawn in the film */
     this.ink = this.surface(this.ink, W, H);
@@ -385,6 +386,26 @@ export class RobotRenderer {
     ctx.fill();
   }
 
+  /* ink along the edges of the jaw's flat front panel, as the film draws its facets */
+  private drawSeams(ctx: CanvasRenderingContext2D, U: number) {
+    const X = this.x, pt = this.pt, N = this.nrm;
+    X.jawNormal(0, 0, 1, N);
+    if (N[2] < 0.05 || !JAW_PANEL.x) return;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(1, U * 0.007);
+    ctx.strokeStyle = INK;
+    ctx.globalAlpha = Math.min(1, N[2] * 2.5);
+    for (const s of [-1, 1]) {
+      /* only the edge whose far facet still faces us: the near one turns away when the head turns */
+      const x = s * JAW_PANEL.x;
+      ctx.beginPath();
+      X.jaw(x, JAW_PANEL.top + 0.004, JAW_PANEL.z, pt, 0); ctx.moveTo(pt[0], pt[1]);
+      X.jaw(x, JAW_PANEL.bottom - 0.004, JAW_PANEL.z, pt, 0); ctx.lineTo(pt[0], pt[1]);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /*
    * The teeth: a row of metal blocks hanging from the upper lip, seen only
    * once the mouth is open wide (a smile shows just the dark band).
@@ -397,15 +418,17 @@ export class RobotRenderer {
     const N = this.nrm;
     X.normal(0, 0, 1, N);
     if (N[2] < 0.1) return;
-    const n = 8;
-    const h = 0.045 + 0.015 * face.teeth;
-    const body = css(radiance(pal.shell, 0, 0.15, 1, this.col));
-    const lit = css(radiance(pal.shell, -0.2, -0.7, 0.7, this.col));
+    const n = 5;
+    const h = 0.05 + 0.015 * face.teeth;
+    /* bright bare metal, about twice the shell's value */
+    const c = radiance(pal.shell, 0, 0.15, 1, this.col);
+    const body = css([c[0] * 4.2, c[1] * 4.2, c[2] * 4.2]);
+    const lit = css([c[0] * 6.5, c[1] * 6.5, c[2] * 6.5]);
     ctx.globalAlpha = Math.min(1, k * 1.4);
     for (let i = 0; i < n; i++) {
-      const span = HEAD.r * 1.36;
-      const x0 = -span / 2 + (i / n) * span + 0.006;
-      const x1 = x0 + span / n - 0.012;
+      const span = HEAD.r * 1.5;
+      const x0 = -span / 2 + (i / n) * span + 0.009;
+      const x1 = x0 + span / n - 0.018;
       /* the row follows the curve of the lip, each block a little narrower at its foot */
       const z = (x: number) => craniumFront(x, 0).z - 0.03;
       const inset = (x1 - x0) * 0.12;
@@ -480,13 +503,14 @@ export class RobotRenderer {
       /* a small white core, a little low in the disc, falling off evenly to
          a warm rim at about half the brightness; a small head gets a wider
          core so its eyes still pop */
-      const corePart = 0.3 + 0.18 * (1 - smooth(6, 20, r * X.U));
+      const corePart = 0.14 + 0.2 * (1 - smooth(6, 20, r * X.U));
       const grad = ctx.createRadialGradient(gx, gy + r * 0.1, 0, gx, gy, r);
       const rim = (k: number) => `rgb(${Math.round(r0 * k)},${Math.round(g0 * k * 0.9)},${Math.round(b0 * k * 0.82)})`;
-      grad.addColorStop(0, core(0.92 * (1 - dark)));
-      grad.addColorStop(corePart, core(0.75 * (1 - dark)));
+      grad.addColorStop(0, core(0.95 * (1 - dark)));
+      grad.addColorStop(corePart, core(0.7 * (1 - dark)));
+      grad.addColorStop(0.55, rim(0.86));
       grad.addColorStop(0.95, rim(0.6));
-      grad.addColorStop(1, rim(0.52));
+      grad.addColorStop(1, rim(0.54));
       ctx.globalAlpha = Math.min(1, bright) * (1 - dark * 0.92);
       glowPath(ctx, gx, gy, r, e.shape);
       ctx.fillStyle = grad;

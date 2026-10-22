@@ -38,7 +38,7 @@ const LIKENESS: Array<{ label: string; pose: Partial<RobotPose>; ref: string; ex
   { label: 'Front', pose: {}, ref: '03-happy/09180.jpg', expr: 'happy' },
   { label: 'Three-quarter', pose: { yaw: -0.38, pitch: -0.04, roll: 0.05 }, ref: '01-neutral/08314.jpg' },
   { label: 'Profile-ish', pose: { yaw: 0.9, pitch: 0.05 }, ref: '14-head-shape/05724.jpg' },
-  { label: 'Spike, low', pose: { yaw: -0.5, pitch: 0.25 }, ref: '14-head-shape/06348.jpg' },
+  { label: 'Low angle', pose: { yaw: -0.5, pitch: 0.25 }, ref: '14-head-shape/06348.jpg' },
   { label: 'From below', pose: { yaw: 0.22, pitch: 0.26, roll: -0.04 }, ref: '14-head-shape/06348.jpg' },
   { label: 'Looking down', pose: { yaw: -0.3, pitch: -0.3, roll: 0.1 }, ref: '02-curious/06692.jpg' },
 ];
