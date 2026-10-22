@@ -134,7 +134,7 @@ export class RobotSim {
   expression: RobotExpression | undefined;
   eye: RGB;
   time = 0;
-  pose: RobotPose = { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0, breathe: 0 };
+  pose: RobotPose = { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0 };
   /* the pointer, relative to the head's centre in CSS px, or null */
   pointer: { x: number; y: number } | null = null;
   /* a level from outside (the `mouth` prop, or audio) that drives the jaw, 0–1, or null */
@@ -305,7 +305,7 @@ export class RobotSim {
     this.pose.yaw = this.yaw.x;
     this.pose.pitch = this.pitch.x;
     this.pose.roll = this.roll.x;
-    this.pose.breathe = Math.sin(t * 1.1) * 0.006;
-    this.pose.lift = Math.sin(t * 1.1 - 0.6) * 0.004;
+    /* a slow float */
+    this.pose.lift = Math.sin(t * 1.1) * 0.012;
   }
 }

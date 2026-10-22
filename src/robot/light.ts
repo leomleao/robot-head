@@ -18,6 +18,8 @@ export interface Material {
   rim: number;
   /* how much of the studio shows in its reflections, 1 by default */
   sheen?: number;
+  /* 0 … 1: how far the diffuse light is pressed toward an even fill, for a flatter, painted look */
+  flat?: number;
 }
 
 const n3 = (x: number, y: number, z: number): V3 => {
@@ -71,7 +73,8 @@ export function radiance(m: Material, nx: number, ny: number, nz: number, out: V
   const spec = m.spec * Math.pow(Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]), m.shininess);
   const back = Math.max(0, nx * BACK[0] + ny * BACK[1] + nz * BACK[2]);
   const rim = m.rim * back * back * Math.pow(1 - ndv, 1.6);
-  const diffuse = 0.05 + 0.1 * sky + 1.25 * key + 0.16 * fill;
+  const lit = 0.05 + 0.1 * sky + 1.25 * key + 0.16 * fill;
+  const diffuse = lit + ((m.flat ?? 0) * (0.62 - lit));
   for (let i = 0; i < 3; i++) {
     const a = m.albedo[i];
     const tint = 1 - m.metal + m.metal * a * 2.2;

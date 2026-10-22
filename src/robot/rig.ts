@@ -50,10 +50,10 @@ export interface FaceRig {
 }
 
 const eye = (o: Partial<EyeRig> = {}): EyeRig => ({
-  lidTop: 0.06, lidBottom: 0, lidAngle: 0, lidCurve: 0, glow: 1, size: 1, shape: 0, pupil: 0, gazeX: 0, gazeY: 0, ...o,
+  lidTop: 0, lidBottom: 0, lidAngle: 0, lidCurve: 0, glow: 1, size: 1, shape: 0, pupil: 0, gazeX: 0, gazeY: 0, ...o,
 });
 
-export const WHITE: RGB = [255, 244, 228];
+export const WHITE: RGB = [255, 236, 226];
 const RED: RGB = [255, 38, 24];
 const PINK: RGB = [255, 168, 160];
 

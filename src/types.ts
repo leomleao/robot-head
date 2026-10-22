@@ -40,7 +40,7 @@ export interface RobotHeadProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'c
   state?: RobotHeadState;
   /** A face to wear over the state's own. */
   expression?: RobotExpression;
-  /** The box the robot rests in, in px: head, neck and shoulders. Default `160`. */
+  /** The box the head rests in, in px; tilts, the glow and the floor's shadow reach past it. Default `160`. */
   size?: number;
   /** Colour of the shell. Default a weathered gunmetal. */
   color?: string;
@@ -52,7 +52,7 @@ export interface RobotHeadProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'c
   paused?: boolean;
   /** Follow the pointer with the eyes and head, and react to a click. Default `true`. */
   interactive?: boolean;
-  /** Draw the soft shadow the head casts on its collar. Default `true`. */
+  /** Draw the soft shadow on the floor under the head. Default `true`. */
   floorShadow?: boolean;
   /** How open the jaw is, 0–1, for lip-sync from a level you already have. Replaces the procedural talking. */
   mouth?: number;

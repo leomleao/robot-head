@@ -12,7 +12,7 @@ import { targetFace } from '../../../src/robot/sim';
 import './lab.css';
 
 const REF = '/@fs/Users/leo/dev/robot-head/inspiration/frames/';
-const SHELL: [number, number, number] = [66, 62, 60];
+const SHELL: [number, number, number] = [60, 55, 63];
 
 function Still({ pose, face, size = 300, shell = SHELL }: { pose: Partial<RobotPose>; face: FaceRig; size?: number; shell?: [number, number, number] }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -24,7 +24,7 @@ function Still({ pose, face, size = 300, shell = SHELL }: { pose: Partial<RobotP
     c.width = Math.round((f.box + 2 * f.padSide) * dpr);
     c.height = Math.round((f.box + f.padTop + f.padBottom) * dpr);
     const t0 = performance.now();
-    r.current.draw(c.getContext('2d')!, f, dpr, { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0, breathe: 0, ...pose }, face, palette(shell), { shadow: true });
+    r.current.draw(c.getContext('2d')!, f, dpr, { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0, ...pose }, face, palette(shell), { shadow: true });
     c.dataset.ms = (performance.now() - t0).toFixed(2);
   });
   return (

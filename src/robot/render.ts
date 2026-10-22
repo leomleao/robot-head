@@ -1,11 +1,10 @@
-/* Drawing the robot on a 2D canvas. The shoulders, chest, collar and neck
-   never move with the head, so they are lit and painted once per size and
-   colour and reused. Every frame the head's meshes are turned about the
-   neck, projected, sorted back to front by quad and filled with their
-   lighting; then the face goes on top: dark sockets, the glow inside them
-   cut by the lids, and a bloom that spills onto the shell. */
+/* Drawing the robot's head on a 2D canvas. Every frame its meshes are
+   turned about the middle of the head, projected, sorted back to front by
+   quad and filled with their lighting; then the face goes on top: dark
+   sockets, the glow inside them cut by the lids, and a bloom that spills
+   onto the shell. A soft shadow on the floor sits under it. */
 
-import { HEAD, HEAD_TOP, MAT, SHOULDER_FRONT, craniumFront, shoulderTop, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
+import { HEAD, HEAD_BOTTOM, HEAD_SIDE, HEAD_TOP, MAT, craniumFront, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
 import { css, linear, radiance, type Material } from './light';
 import type { EyeRig, FaceRig, RGB } from './rig';
 
@@ -18,8 +17,8 @@ export interface Palette {
 export function palette(shell: RGB): Palette {
   const a = linear(shell);
   return {
-    shell: { albedo: a, f0: 0.02, metal: 0.25, spec: 0.16, shininess: 14, rim: 0.45, sheen: 0.45 },
-    dark: { albedo: [a[0] * 0.32, a[1] * 0.32, a[2] * 0.32], f0: 0.03, metal: 0.3, spec: 0.12, shininess: 12, rim: 0.35 },
+    shell: { albedo: a, f0: 0.02, metal: 0.2, spec: 0.06, shininess: 10, rim: 0.35, sheen: 0.22, flat: 0.45 },
+    dark: { albedo: [a[0] * 0.32, a[1] * 0.32, a[2] * 0.32], f0: 0.03, metal: 0.3, spec: 0.06, shininess: 12, rim: 0.3, flat: 0.4 },
     inside: { albedo: [0.006, 0.005, 0.004], f0: 0.02, metal: 0, spec: 0, shininess: 8, rim: 0, sheen: 0.15 },
   };
 }
@@ -31,22 +30,13 @@ export interface RobotPose {
   /* the head's drift, sideways and up, in head units */
   x: number;
   lift: number;
-  /* the shoulders rising with a breath, in head units */
-  breathe: number;
 }
 
-export const REST_POSE: RobotPose = { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0, breathe: 0 };
+export const REST_POSE: RobotPose = { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0 };
 
 export interface RenderOptions {
   shadow: boolean;
 }
-
-const makeCanvas = (w: number, h: number) => {
-  const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.ceil(w));
-  c.height = Math.max(1, Math.ceil(h));
-  return c;
-};
 
 const smooth = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -55,17 +45,18 @@ const smooth = (a: number, b: number, x: number) => {
 
 /* ── framing ─────────────────────────────────────────────────────────── */
 
-/* the box holds, at rest, from a little over the crest's spike down to the
-   bottom edge of the shoulders' crop */
-const TOP = HEAD_TOP - 0.035;
-const BOTTOM = 0.8;
-/* room the head needs past the box when it tilts, nods or rises, and for the glow */
-const REACH = { up: 0.16, side: 0.1 };
+/* the head at rest fills the box but for this inset, as a share of it */
+const BOX_INSET = 0.05;
+/* room past the head for motion, in head units: a nod or tilt, the bob, the
+   glow, and the floor's shadow below */
+const REACH = { up: 0.12, side: 0.1, shadow: 0.14 };
+/* how far below the chin the floor is */
+const FLOOR = 0.07;
 
 /**
- * Where the robot sits, in CSS px. The element is a `box` × `box` square
- * with the robot at rest filling it; the canvas reaches past it by `pad*`
- * on each side. `cx`, `cy` place the middle of the mouth line (the model's
+ * Where the head sits, in CSS px. The element is a `box` × `box` square
+ * with the head at rest centred in it and filling it; the canvas reaches
+ * past it by `pad*` on each side. `cx`, `cy` place the middle of the mouth line (the model's
  * origin) at rest; `unit` is one head unit.
  */
 export interface Frame {
@@ -79,10 +70,16 @@ export interface Frame {
 }
 
 export function frameFor(box: number): Frame {
-  const unit = box / (BOTTOM - TOP);
-  const padTop = Math.ceil(REACH.up * unit + 1);
-  const padSide = Math.ceil(REACH.side * unit + 1);
-  return { box, padTop, padBottom: 1, padSide, unit, cx: padSide + box / 2, cy: padTop - TOP * unit };
+  const tall = HEAD_BOTTOM - HEAD_TOP, wide = 2 * HEAD_SIDE;
+  const inner = box * (1 - 2 * BOX_INSET);
+  const unit = Math.min(inner / tall, inner / wide);
+  /* the resting head, centred in the box */
+  const above = (box - tall * unit) / 2;
+  const originY = above - HEAD_TOP * unit;
+  const padTop = Math.ceil(Math.max(0, REACH.up * unit - above) + 1);
+  const padBottom = Math.ceil(Math.max(0, (FLOOR + REACH.shadow) * unit - above) + 1);
+  const padSide = Math.ceil(Math.max(0, REACH.side * unit - (box - wide * unit) / 2) + 1);
+  return { box, padTop, padBottom, padSide, unit, cx: padSide + box / 2, cy: padTop + originY };
 }
 
 /* ── projection ──────────────────────────────────────────────────────── */
@@ -155,13 +152,8 @@ const EYE_NORMAL_R: V3 = (() => {
 })();
 const EYE_NORMAL_L: V3 = [-EYE_NORMAL_R[0], EYE_NORMAL_R[1], EYE_NORMAL_R[2]];
 
-/* how far the body is tipped toward us, radians */
-const BODY_VIEW = -0.3;
-/* and lifted back up, so the collar's front edge stays just under the jaw */
-const BODY_LIFT = -0.045;
-
 /* the grime: a little darker toward the bottom of each part */
-const grimeOf = (y: number) => 1 - 0.2 * smooth(-0.35, 0.3, y);
+const grimeOf = (y: number) => 1 - 0.14 * smooth(-0.35, 0.3, y);
 
 /* ── the eyes ────────────────────────────────────────────────────────── */
 
@@ -193,8 +185,6 @@ function glowPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 }
 
 export class RobotRenderer {
-  private bakeKey = '';
-  private bake: HTMLCanvasElement | null = null;
   private proj: Projected[] = [];
   private zs = new Float32Array(0);
   private order = new Uint32Array(0);
@@ -217,114 +207,6 @@ export class RobotRenderer {
     this.jawPos = new Float32Array(m.jaw.pos.length);
   }
 
-  /* the shoulders, chest, collar and neck: lit once, clipped to the box, faded at the bottom */
-  private bakeBody(w: number, h: number, frame: Frame, dpr: number, pal: Palette) {
-    const key = `${w}x${h}:${frame.unit}:${dpr}:${pal.shell.albedo.join(',')}`;
-    if (key === this.bakeKey && this.bake) return this.bake;
-    this.bakeKey = key;
-    const c = makeCanvas(w, h);
-    const ctx = c.getContext('2d')!;
-    const U = frame.unit * dpr;
-    const cx = frame.cx * dpr, cy = frame.cy * dpr;
-    const m = robotMeshes();
-    /* the body is seen from a little above, so the tops of the shoulders and their fins catch the light */
-    const V = rotation(0, BODY_VIEW, 0);
-    const O = 0.35;
-    const view = (x: number, y: number, z: number): V3 => [
-      V[0] * x + V[1] * (y - O) + V[2] * z,
-      V[3] * x + V[4] * (y - O) + V[5] * z + O + BODY_LIFT,
-      V[6] * x + V[7] * (y - O) + V[8] * z,
-    ];
-    /* the body's plates are weathered flatter than the head: the overhead softbox barely shows in their tops */
-    const body: Material = { ...pal.shell, sheen: 0.12, spec: 0.08, albedo: [pal.shell.albedo[0] * 0.92, pal.shell.albedo[1] * 0.92, pal.shell.albedo[2] * 0.92] };
-    const meshes = [m.chest, m.shoulders, m.collar, m.neck];
-    const items: Array<[number, Mesh, number, V3]> = [];
-    for (const mesh of meshes) {
-      for (let q = 0; q < mesh.quads.length / 4; q++) {
-        const n = mesh.normals;
-        const w: V3 = [
-          V[0] * n[q * 3] + V[1] * n[q * 3 + 1] + V[2] * n[q * 3 + 2],
-          V[3] * n[q * 3] + V[4] * n[q * 3 + 1] + V[5] * n[q * 3 + 2],
-          V[6] * n[q * 3] + V[7] * n[q * 3 + 1] + V[8] * n[q * 3 + 2],
-        ];
-        if (w[2] < -0.02) continue;
-        let z = 0;
-        for (let k = 0; k < 4; k++) {
-          const i = mesh.quads[q * 4 + k] * 3;
-          z += view(mesh.pos[i], mesh.pos[i + 1], mesh.pos[i + 2])[2];
-        }
-        items.push([z / 4, mesh, q, w]);
-      }
-    }
-    items.sort((a, b) => a[0] - b[0]);
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(0.6, U / 300);
-    for (const [, mesh, q, w] of items) {
-      const mat = mesh.mats[q] === MAT.dark ? pal.dark : mesh.mats[q] === MAT.inside ? pal.inside : body;
-      /* lit as it stands; the tip toward us is only the camera's */
-      const n = mesh.normals;
-      const col = radiance(mat, n[q * 3], n[q * 3 + 1], n[q * 3 + 2], this.col);
-      const g = grimeOf(mesh.ys[q] - 0.75);
-      col[0] *= g; col[1] *= g; col[2] *= g;
-      const s = css(col);
-      ctx.beginPath();
-      for (let k = 0; k < 4; k++) {
-        const i = mesh.quads[q * 4 + k] * 3;
-        const p = view(mesh.pos[i], mesh.pos[i + 1], mesh.pos[i + 2]);
-        const px = cx + p[0] * U, py = cy + p[1] * U;
-        if (k) ctx.lineTo(px, py);
-        else ctx.moveTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fillStyle = s;
-      ctx.strokeStyle = s;
-      ctx.fill();
-      ctx.stroke();
-    }
-    /* rivets along the front edge of each shoulder */
-    for (const s of [-1, 1]) {
-      /* a row just under the bevel along the front face, and one down the inner edge */
-      for (let i = 0; i < 7; i++) {
-        const x = 0.3 + i * 0.065;
-        const p = view(s * x, shoulderTop(x, SHOULDER_FRONT) + 0.075, SHOULDER_FRONT + 0.002);
-        this.rivet(ctx, cx + p[0] * U, cy + p[1] * U, U * 0.0095, pal);
-      }
-      for (let i = 0; i < 6; i++) {
-        const t = i / 5;
-        const y = shoulderTop(0.25, SHOULDER_FRONT) + 0.09 + t * 0.62;
-        const p = view(s * (0.29 - t * 0.1), y, SHOULDER_FRONT + 0.002);
-        this.rivet(ctx, cx + p[0] * U, cy + p[1] * U, U * 0.0095, pal);
-      }
-    }
-    /* clip to the box, and fade out toward its bottom edge */
-    const bx = frame.padSide * dpr, by = frame.padTop * dpr, bw = frame.box * dpr;
-    ctx.globalCompositeOperation = 'destination-in';
-    const fade = ctx.createLinearGradient(0, by + bw * 0.78, 0, by + bw);
-    fade.addColorStop(0, 'rgba(0,0,0,1)');
-    fade.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = fade;
-    ctx.fillRect(bx, 0, bw, by + bw);
-    ctx.globalCompositeOperation = 'source-over';
-    this.bake = c;
-    return c;
-  }
-
-  private rivet(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, pal: Palette) {
-    const hi = css(radiance(pal.shell, -0.45, -0.6, 0.66, this.col));
-    const lo = css(radiance(pal.shell, 0.4, 0.55, 0.73, this.col));
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath();
-    ctx.arc(x + r * 0.35, y + r * 0.4, r * 1.05, 0, Math.PI * 2);
-    ctx.fill();
-    const g = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
-    g.addColorStop(0, hi);
-    g.addColorStop(1, lo);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
   /** Draw a frame; `frame` is in CSS px, the canvas in device px (`dpr` per CSS px). */
   draw(ctx: CanvasRenderingContext2D, frame: Frame, dpr: number, pose: RobotPose, face: FaceRig, pal: Palette, opts: RenderOptions) {
     this.setup();
@@ -334,26 +216,24 @@ export class RobotRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
 
-    /* the body, rising a little with each breath */
-    const body = this.bakeBody(W, H, frame, dpr, pal);
-    ctx.drawImage(body, 0, -pose.breathe * U);
-
     const X = this.x;
-    X.set(pose, face, cx, cy - pose.breathe * U * 0.6, U);
+    X.set(pose, face, cx, cy, U);
 
-    /* the shadow the head casts on its collar */
+    /* the floor's shadow, smaller and fainter the higher the head floats */
     if (opts.shadow) {
-      const sx = cx + (pose.x + Math.sin(pose.yaw) * 0.05) * U;
-      const sy = cy + (0.36 - pose.breathe * 0.6) * U;
+      const up = Math.max(0, pose.lift);
+      const rx = HEAD.r * 1.15 * (1 - up * 0.9) * U;
       ctx.save();
-      ctx.translate(sx, sy);
-      ctx.scale(1, 0.32);
-      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 0.36 * U);
-      g.addColorStop(0, 'rgba(0,0,0,0.45)');
+      ctx.translate(cx + pose.x * U, cy + (HEAD_BOTTOM + FLOOR) * U);
+      ctx.scale(1, 0.16);
+      const a = 0.5 * Math.max(0, 1 - up * 1.6);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      g.addColorStop(0, `rgba(0,0,0,${a})`);
+      g.addColorStop(0.55, `rgba(0,0,0,${a * 0.45})`);
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(0, 0, 0.36 * U, 0, Math.PI * 2);
+      ctx.arc(0, 0, rx, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -457,19 +337,19 @@ export class RobotRenderer {
     ctx.beginPath();
     const steps = 12;
     for (let i = 0; i <= steps; i++) {
-      const x = -HEAD.r * 0.97 + (i / steps) * HEAD.r * 1.94;
+      const x = -HEAD.r * 0.85 + (i / steps) * HEAD.r * 1.7;
       X.head(x, -0.02, craniumFront(x * 0.98, -0.01).z - 0.01, pt, 0);
       if (i) ctx.lineTo(pt[0], pt[1]);
       else ctx.moveTo(pt[0], pt[1]);
     }
     for (let i = steps; i >= 0; i--) {
-      const x = -HEAD.r * 0.97 + (i / steps) * HEAD.r * 1.94;
-      X.head(x, 0.2, craniumFront(x * 0.98, -0.01).z - 0.03, pt, 0);
+      const x = -HEAD.r * 0.85 + (i / steps) * HEAD.r * 1.7;
+      X.head(x, 0.1, craniumFront(x * 0.98, -0.01).z - 0.05, pt, 0);
       ctx.lineTo(pt[0], pt[1]);
     }
     ctx.closePath();
     /* and a wall across the middle of the head, so a turned head shows dark between the cranium and the jaw's arms */
-    for (const [x, y] of [[-0.27, -0.03], [0.27, -0.03], [0.27, 0.22], [-0.27, 0.22]] as const) {
+    for (const [x, y] of [[-0.24, -0.03], [0.24, -0.03], [0.24, 0.1], [-0.24, 0.1]] as const) {
       X.head(x, y, -0.06, pt, 0);
       if (x < 0 && y < 0) ctx.moveTo(pt[0], pt[1]);
       else ctx.lineTo(pt[0], pt[1]);
@@ -485,15 +365,15 @@ export class RobotRenderer {
    * mouth is open, so a closed mouth never shows them through the lip.
    */
   private drawTeeth(ctx: CanvasRenderingContext2D, face: FaceRig) {
-    const open = Math.min(1, Math.max(0, (face.jawOpen - 0.12) / 0.3));
-    const k = Math.min(1, face.teeth) * open;
+    const open = Math.min(1, Math.max(0, (face.jawOpen - 0.14) / 0.25));
+    const k = (0.75 + 0.25 * Math.min(1, face.teeth)) * open;
     if (k < 0.02) return;
     const X = this.x, pt = this.pt;
     const N = this.nrm;
     X.normal(0, 0, 1, N);
     if (N[2] < 0.1) return;
     const n = 9;
-    const h = 0.05 * open;
+    const h = (0.035 + 0.02 * face.teeth) * open;
     ctx.globalAlpha = Math.min(1, k * 1.5);
     for (let i = 0; i < n; i++) {
       const x0 = -HEAD.r * 0.74 + (i / n) * HEAD.r * 1.48 + 0.005;
@@ -546,7 +426,7 @@ export class RobotRenderer {
     const [r0, g0, b0] = face.color;
     const r = R * HEAD.glow * e.size;
     const travel = Math.max(0, R * 0.96 - r);
-    const gx = e.gazeX * travel, gy = e.gazeY * travel;
+    const gx = e.gazeX * travel, gy = e.gazeY * travel + R * 0.08;
     const bright = Math.max(0, e.glow);
     const open = this.openness(e);
     ctx.save();
@@ -557,11 +437,12 @@ export class RobotRenderer {
       /* the disc: hot white at the core, the colour toward its edge */
       const dark = e.pupil;
       const core = (k: number) => `rgb(${Math.round(r0 + (255 - r0) * k)},${Math.round(g0 + (255 - g0) * k)},${Math.round(b0 + (255 - b0) * k)})`;
-      const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-      grad.addColorStop(0, core(0.8 * (1 - dark)));
-      grad.addColorStop(0.45, core(0.45 * (1 - dark)));
-      grad.addColorStop(0.85, core(0));
-      grad.addColorStop(1, `rgb(${Math.round(r0 * 0.88)},${Math.round(g0 * 0.84)},${Math.round(b0 * 0.84)})`);
+      /* the hot spot sits a little low in the disc, and the light falls away to a warm, dimmer rim */
+      const grad = ctx.createRadialGradient(gx, gy + r * 0.12, 0, gx, gy, r);
+      grad.addColorStop(0, core(0.85 * (1 - dark)));
+      grad.addColorStop(0.3, core(0.55 * (1 - dark)));
+      grad.addColorStop(0.75, `rgb(${Math.round(r0 * 0.92)},${Math.round(g0 * 0.86)},${Math.round(b0 * 0.86)})`);
+      grad.addColorStop(1, `rgb(${Math.round(r0 * 0.76)},${Math.round(g0 * 0.62)},${Math.round(b0 * 0.64)})`);
       ctx.globalAlpha = Math.min(1, bright) * (1 - dark * 0.92);
       glowPath(ctx, gx, gy, r, e.shape);
       ctx.fillStyle = grad;
@@ -640,4 +521,3 @@ export class RobotRenderer {
   }
 }
 
-export { TOP as FRAME_TOP, BOTTOM as FRAME_BOTTOM };

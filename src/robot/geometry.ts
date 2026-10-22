@@ -1,39 +1,41 @@
 /* The robot as quad meshes in head units: x right, y down, z toward the
    viewer, the origin at the middle of the mouth line (the cranium's lower
-   edge). Every frame the head's meshes are turned about the neck and
-   projected orthographically; the shoulders never turn, so they are drawn
-   once per size and reused.
+   edge). Every frame the meshes are turned about the middle of the head
+   and projected orthographically.
 
    The head, its jaw and the crest come from a sculpt (see model.ts),
    decimated to a few thousand triangles: a domed cranium round in section
    with a slot over the top for the crest, and a jaw like a bucket hanging
    from two arms pinned at the back of the head, so opening it swings the
    chin down and back. Triangles are stored as quads repeating their last
-   vertex. The neck, collar and shoulders are built here. */
+   vertex. */
 
-import { MODEL, MODEL_EYES, MODEL_HINGE, MODEL_Q } from './model';
+import { MODEL, MODEL_BOUNDS, MODEL_EYES, MODEL_HINGE, MODEL_PROFILE, MODEL_Q } from './model';
 
 export type V3 = [number, number, number];
 
 /* the head's measurements in head units */
 export const HEAD = {
-  /* the cranium's radius below the dome */
-  r: 0.299,
+  /* the cranium's radius at the mouth line */
+  r: MODEL_PROFILE[0][1],
   /* the eyes: centres, the socket's radius, the glow's share of it */
   eyeX: MODEL_EYES[1][0],
   eyeY: MODEL_EYES[1][1],
   eyeZ: MODEL_EYES[1][2],
   socket: MODEL_EYES[1][3],
-  glow: 0.6,
+  glow: 0.75,
   /* the jaw's hinge pins */
   hingeY: MODEL_HINGE[0],
   hingeZ: MODEL_HINGE[1],
-  /* where the head turns: inside the jaw, at the top of the neck */
-  pivot: 0.2,
+  /* where the head turns: its middle, a little behind the eyes */
+  pivot: -0.16,
 } as const;
 
-/* the top of the crest, for framing */
-export const HEAD_TOP = -0.545;
+/* the head's reach at rest, for framing: the top of the crest, the bottom
+   of the jaw, the hinge lugs at the sides */
+export const HEAD_TOP = MODEL_BOUNDS[0];
+export const HEAD_BOTTOM = MODEL_BOUNDS[1];
+export const HEAD_SIDE = MODEL_BOUNDS[2];
 
 export interface Mesh {
   /* x, y, z per vertex */
@@ -67,85 +69,9 @@ const norm = (x: number, y: number, z: number): V3 => {
   return [x / l, y / l, z / l];
 };
 
-const TAU = Math.PI * 2;
-
-/* ── building ────────────────────────────────────────────────────────── */
-
-class Builder {
-  pos: number[] = [];
-  quads: number[] = [];
-  mats: number[] = [];
-  vertex(x: number, y: number, z: number): number {
-    this.pos.push(x, y, z);
-    return this.pos.length / 3 - 1;
-  }
-  quad(a: number, b: number, c: number, d: number, mat: number = MAT.shell) {
-    this.quads.push(a, b, c, d);
-    this.mats.push(mat);
-  }
-  /** Normals from each quad's diagonals, turned to face away from `inside(centroid)`. */
-  finish(inside: (x: number, y: number, z: number) => V3): Mesh {
-    const P = this.pos, Q = this.quads;
-    const nq = Q.length / 4;
-    const normals = new Float32Array(nq * 3);
-    const ys = new Float32Array(nq);
-    for (let q = 0; q < nq; q++) {
-      const i0 = Q[q * 4] * 3, i1 = Q[q * 4 + 1] * 3, i2 = Q[q * 4 + 2] * 3, i3 = Q[q * 4 + 3] * 3;
-      const d1x = P[i2] - P[i0], d1y = P[i2 + 1] - P[i0 + 1], d1z = P[i2 + 2] - P[i0 + 2];
-      const d2x = P[i3] - P[i1], d2y = P[i3 + 1] - P[i1 + 1], d2z = P[i3 + 2] - P[i1 + 2];
-      let [nx, ny, nz] = norm(d1y * d2z - d1z * d2y, d1z * d2x - d1x * d2z, d1x * d2y - d1y * d2x);
-      const cx = (P[i0] + P[i1] + P[i2] + P[i3]) / 4;
-      const cy = (P[i0 + 1] + P[i1 + 1] + P[i2 + 1] + P[i3 + 1]) / 4;
-      const cz = (P[i0 + 2] + P[i1 + 2] + P[i2 + 2] + P[i3 + 2]) / 4;
-      const o = inside(cx, cy, cz);
-      if (nx * (cx - o[0]) + ny * (cy - o[1]) + nz * (cz - o[2]) < 0) {
-        nx = -nx; ny = -ny; nz = -nz;
-      }
-      normals[q * 3] = nx; normals[q * 3 + 1] = ny; normals[q * 3 + 2] = nz;
-      ys[q] = cy;
-    }
-    return { pos: new Float32Array(P), quads: new Uint16Array(Q), normals, ys, mats: new Uint8Array(this.mats) };
-  }
-}
-
-/** A solid of revolution about a vertical axis: `profile` is [radius, y] from top to bottom. */
-function lathe(b: Builder, profile: Array<[number, number]>, segments: number, cx = 0, cz = 0, mat: number = MAT.shell) {
-  const base = b.pos.length / 3;
-  for (const [r, y] of profile) {
-    for (let j = 0; j < segments; j++) {
-      const a = (j / segments) * TAU;
-      b.vertex(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r);
-    }
-  }
-  for (let k = 0; k < profile.length - 1; k++) {
-    for (let j = 0; j < segments; j++) {
-      const j2 = (j + 1) % segments;
-      b.quad(base + k * segments + j, base + k * segments + j2, base + (k + 1) * segments + j2, base + (k + 1) * segments + j, mat);
-    }
-  }
-}
-
-/** A box with its corners at ±h about `c`, each face one quad. */
-function box(b: Builder, c: V3, h: V3, mat: number = MAT.shell) {
-  const v: number[] = [];
-  for (let i = 0; i < 8; i++) {
-    v.push(b.vertex(c[0] + (i & 1 ? h[0] : -h[0]), c[1] + (i & 2 ? h[1] : -h[1]), c[2] + (i & 4 ? h[2] : -h[2])));
-  }
-  b.quad(v[0], v[1], v[3], v[2], mat); /* back */
-  b.quad(v[4], v[5], v[7], v[6], mat); /* front */
-  b.quad(v[0], v[1], v[5], v[4], mat); /* top */
-  b.quad(v[2], v[3], v[7], v[6], mat); /* bottom */
-  b.quad(v[0], v[2], v[6], v[4], mat); /* left */
-  b.quad(v[1], v[3], v[7], v[5], mat); /* right */
-}
-
 /* ── the head, from the sculpt ───────────────────────────────────────── */
 
-/* the cranium's radius at each height, measured off the sculpt: round in
-   section, straight up to the eyes, then the dome */
-const PROFILE: Array<[number, number]> = [
-  [0.02, 0.299], [-0.283, 0.299], [-0.354, 0.26], [-0.424, 0.217], [-0.467, 0.176], [-0.495, 0.133], [-0.512, 0.09], [-0.521, 0],
-];
+const PROFILE = MODEL_PROFILE;
 
 function craniumRadius(y: number): number {
   if (y >= PROFILE[0][0]) return PROFILE[0][1];
@@ -220,169 +146,10 @@ export function shapeJaw(rest: Float32Array, pos: Float32Array, smile: number) {
   }
 }
 
-/* ── neck and shoulders ──────────────────────────────────────────────── */
-
-function neck(): Mesh {
-  const b = new Builder();
-  const profile: Array<[number, number]> = [];
-  /* ribbed: a ridge every 0.03 */
-  for (let i = 0; i <= 4; i++) {
-    const y = 0.17 + i * 0.03;
-    profile.push([0.155, y], [0.14, y + 0.015]);
-  }
-  lathe(b, profile, 28, 0, -0.02, MAT.dark);
-  return b.finish((_x, y) => [0, y, -0.02]);
-}
-
-/* a thick ring round the base of the neck, mostly hidden by the jaw */
-function collar(): Mesh {
-  const b = new Builder();
-  const prof: Array<[number, number]> = [];
-  const R = 0.235, r = 0.05, cy = 0.29;
-  for (let i = 0; i <= 12; i++) {
-    const a = -Math.PI / 2 + (i / 12) * Math.PI * 1.5;
-    prof.push([R + Math.cos(a) * r, cy + Math.sin(a) * r]);
-  }
-  lathe(b, prof, 40, 0, -0.03);
-  return b.finish((_x, y) => [0, cy, -0.03]);
-}
-
-/*
- * One shoulder plate, after the original's: a slab whose top rises to
- * about the middle of the jaw by the neck and falls away outward and
- * toward the front, its front edge bevelled, its inner edge leaning in
- * toward the chest so the two plates frame a dark V. Four ridges run
- * diagonally across its top by the neck, and a thick arched band stands
- * over the outer end, where the arm hangs. `s` is the side.
- */
-const SHOULDER = { inner: 0.25, innerBottom: 0.15, outer: 1.05, back: -0.36, front: 0.2, bottom: 1.05, bevel: 0.045 };
-export const SHOULDER_FRONT = SHOULDER.front;
-/* the top's height: highest at the back by the neck, falling outward and forward */
-export const shoulderTop = (x: number, z: number) => 0.15 + (x - SHOULDER.inner) * 0.2 + (z - SHOULDER.back) * 0.06;
-/* the arch over the outer end */
-export const ARCH = { x: 0.7, z: -0.02, w: 0.07, rIn: 0.17, rOut: 0.24, turn: 1.05 };
-
-function shoulder(s: number): Mesh[] {
-  const out: Mesh[] = [];
-  let b = new Builder();
-  const { inner, innerBottom, outer, back, front, bottom, bevel } = SHOULDER;
-  /* the outline across the plate at depth z; `top` lowers the top edge and `side` pulls the ends in, for the bevels */
-  const loop = (z: number, top: number, side: number) => {
-    const xi = inner + side * 0.6;
-    return [
-      b.vertex(s * xi, shoulderTop(xi, z) + top, z),
-      b.vertex(s * (outer - side), shoulderTop(outer, z) + top, z),
-      b.vertex(s * (outer - side), bottom, z),
-      b.vertex(s * (innerBottom + side * 0.6), bottom, z),
-    ];
-  };
-  const loops = [loop(back, bevel * 0.5, bevel * 0.4), loop(back + bevel * 0.5, 0, 0), loop(front - bevel, 0, 0), loop(front, bevel, bevel * 0.5)];
-  for (let k = 0; k < loops.length - 1; k++) {
-    for (let i = 0; i < 4; i++) {
-      const i2 = (i + 1) % 4;
-      b.quad(loops[k][i], loops[k][i2], loops[k + 1][i2], loops[k + 1][i]);
-    }
-  }
-  for (const l of [loops[0], loops[3]]) b.quad(l[0], l[1], l[2], l[3]);
-  out.push(b.finish(() => [s * 0.62, 0.62, (back + front) / 2]));
-
-  /* ridges: wedges across the top, leaning outward toward the front, a sloped face at the front end */
-  for (const fx of [0.36, 0.465, 0.57]) {
-    b = new Builder();
-    const w = 0.03, h = 0.055;
-    const z0 = back + 0.14, z1 = front - bevel - 0.02;
-    const at = (z: number) => fx + (z - z0) * 0.22;
-    const p = (dx: number, z: number, up: number) => {
-      const x = at(z) + dx;
-      return b.vertex(s * x, shoulderTop(x, z) - up + 0.004, z);
-    };
-    const bl0 = p(-w, z0, 0), br0 = p(w, z0, 0), bl1 = p(-w, z1, 0), br1 = p(w, z1, 0);
-    const tl0 = p(-w * 0.7, z0, h), tr0 = p(w * 0.7, z0, h);
-    /* the front end slopes down to the plate */
-    const tl1 = p(-w * 0.7, z1 - 0.07, h), tr1 = p(w * 0.7, z1 - 0.07, h);
-    b.quad(tl0, tr0, tr1, tl1);
-    b.quad(bl0, tl0, tl1, bl1);
-    b.quad(tr0, br0, br1, tr1);
-    b.quad(tl1, tr1, br1, bl1);
-    b.quad(bl0, br0, tr0, tl0);
-    /* each ridge faces away from its own spine */
-    out.push(b.finish((x, _y, z) => {
-      const xc = at(z);
-      return [s * xc, shoulderTop(xc, z) - h * 0.4, z];
-    }));
-  }
-
-  /* the arch: a thick band swept over the outer end, its plane turned to face mostly forward */
-  b = new Builder();
-  const { x: ax, z: az, w, rIn, rOut, turn } = ARCH;
-  const cy = shoulderTop(ax, az) + 0.03;
-  /* the plane's horizontal axis: outward and back; its thickness runs across it */
-  const ux = Math.sin(turn), uz = -Math.cos(turn);
-  const tx = Math.cos(turn), tz = Math.sin(turn);
-  const N = 18;
-  const ring: number[][] = [];
-  for (let i = 0; i <= N; i++) {
-    const th = (i / N) * Math.PI;
-    const c = Math.cos(th), sn = Math.sin(th);
-    const pt = (r: number, t: number) => b.vertex(s * (ax + ux * c * r + tx * t), cy - sn * r, az + uz * c * r + tz * t);
-    ring.push([pt(rIn, -w / 2), pt(rIn, w / 2), pt(rOut, w / 2), pt(rOut, -w / 2)]);
-  }
-  for (let i = 0; i < N; i++) {
-    for (let k = 0; k < 4; k++) {
-      const k2 = (k + 1) % 4;
-      b.quad(ring[i][k], ring[i][k2], ring[i + 1][k2], ring[i + 1][k]);
-    }
-  }
-  /* the band faces away from its own middle: the point on its mid-line at the same angle */
-  out.push(b.finish((x, y, z) => {
-    const dx = s * x - ax, dz = z - az;
-    const along = dx * ux + dz * uz;
-    const th = Math.atan2(cy - y, along);
-    const rm = (rIn + rOut) / 2;
-    return [s * (ax + ux * Math.cos(th) * rm), cy - Math.sin(th) * rm, az + uz * Math.cos(th) * rm];
-  }));
-  return out;
-}
-
-function shoulders(): Mesh {
-  return merge([...shoulder(-1), ...shoulder(1)]);
-}
-
-/* several meshes as one */
-function merge(parts: Mesh[]): Mesh {
-  const nv = parts.reduce((n, m) => n + m.pos.length, 0);
-  const nq = parts.reduce((n, m) => n + m.quads.length, 0);
-  const pos = new Float32Array(nv), quads = new Uint16Array(nq);
-  const normals = new Float32Array((nq / 4) * 3), ys = new Float32Array(nq / 4), mats = new Uint8Array(nq / 4);
-  let pv = 0, pq = 0;
-  for (const m of parts) {
-    pos.set(m.pos, pv);
-    for (let i = 0; i < m.quads.length; i++) quads[pq + i] = m.quads[i] + pv / 3;
-    normals.set(m.normals, (pq / 4) * 3);
-    ys.set(m.ys, pq / 4);
-    mats.set(m.mats, pq / 4);
-    pv += m.pos.length;
-    pq += m.quads.length;
-  }
-  return { pos, quads, normals, ys, mats };
-}
-
-/* the chest between the shoulders, under the collar: dark, with ribs */
-function chest(): Mesh {
-  const b = new Builder();
-  box(b, [0, 0.68, -0.08], [0.26, 0.38, 0.22], MAT.dark);
-  for (let i = -3; i <= 3; i++) box(b, [i * 0.062, 0.7, 0.13], [0.019, 0.36, 0.02]);
-  return b.finish((_x, y) => [0, y, -0.06]);
-}
-
 export interface RobotMeshes {
   cranium: Mesh;
   crest: Mesh;
   jaw: Mesh;
-  neck: Mesh;
-  collar: Mesh;
-  shoulders: Mesh;
-  chest: Mesh;
 }
 
 let meshes: RobotMeshes | null = null;
@@ -392,10 +159,6 @@ export function robotMeshes(): RobotMeshes {
       cranium: sculpt(MODEL.head),
       crest: sculpt(MODEL.crest),
       jaw: sculpt(MODEL.jaw),
-      neck: neck(),
-      collar: collar(),
-      shoulders: shoulders(),
-      chest: chest(),
     };
     const j = meshes.jaw.pos;
     jawTop = Infinity;

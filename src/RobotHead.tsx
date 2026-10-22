@@ -19,15 +19,15 @@ function hashSeed(id: string): number {
 const reducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const SHELL: RGB = [66, 62, 60];
+const SHELL: RGB = [60, 55, 63];
 
 /**
- * A heavy, gentle robot: a domed head on a neck between broad shoulders,
- * with glowing eyes that do the acting and a jaw that smiles and talks.
+ * A heavy, gentle robot head: a dome with a crest, glowing eyes that do
+ * the acting, and a hinged jaw that smiles and talks.
  *
- * The element is a `size` × `size` box with the robot at rest filling it;
- * its canvas reaches past the box, so the head can tilt and the glow can
- * spill without taking part in layout.
+ * The element is a `size` × `size` box with the head at rest filling it;
+ * its canvas reaches past the box, so the head can tilt, the glow can
+ * spill and the floor's shadow can sit below without taking part in layout.
  */
 export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function RobotHead(
   {
@@ -118,7 +118,7 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
         const box = el.getBoundingClientRect();
         const f = frameRef.current;
         const dx = pointer.x - (box.left + box.width / 2);
-        const dy = pointer.y - (box.top + f.cy - f.padTop - 0.27 * f.unit);
+        const dy = pointer.y - (box.top + f.cy - f.padTop - 0.26 * f.unit);
         s.pointer = Math.hypot(dx, dy) < 900 ? { x: dx, y: dy } : null;
       } else s.pointer = null;
       s.update(dt * speedRef.current);
