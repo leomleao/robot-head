@@ -40,6 +40,7 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
     paused = false,
     interactive = true,
     floorShadow = true,
+    mouth,
     seed,
     className,
     style,
@@ -79,6 +80,7 @@ export const RobotHead = forwardRef<HTMLCanvasElement, RobotHeadProps>(function 
 
   if (!sim.current) sim.current = new RobotSim(seedValue, stateKey, exprKey, eye);
   sim.current.set(stateKey, exprKey, eye);
+  sim.current.mouth = typeof mouth === 'number' && Number.isFinite(mouth) ? mouth : null;
 
   const frame = frameFor(size);
   const frameRef = useRef(frame);

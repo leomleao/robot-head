@@ -29,6 +29,75 @@ function rng(seed: number) {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/*
+ * The jaw's own life: a queue of moves, each a target opening held for a
+ * while, chased by a quick spring so the jaw snaps like a hinge rather
+ * than floating. Speech is short phrases of one- and two-syllable words
+ * with pauses between ("I fix." "You stay. I go."); a hum is a small drop
+ * and close; a laugh is a quick run of wide opens.
+ */
+class Jaw {
+  private queue: Array<[number, number]> = [];
+  private hold = 0;
+  private target = 0;
+  readonly spring = new Spring();
+
+  get busy() {
+    return this.queue.length > 0 || this.hold > 0;
+  }
+
+  clear() {
+    this.queue.length = 0;
+    this.hold = 0;
+    this.target = 0;
+  }
+
+  push(open: number, seconds: number) {
+    this.queue.push([open, seconds]);
+  }
+
+  phrase(rand: () => number) {
+    const words = 1 + Math.floor(rand() * 3);
+    for (let w = 0; w < words; w++) {
+      const syllables = rand() < 0.65 ? 1 : 2;
+      for (let k = 0; k < syllables; k++) {
+        this.push(0.45 + rand() * 0.45, 0.1 + rand() * 0.1);
+        this.push(0.05 + rand() * 0.08, 0.05 + rand() * 0.05);
+      }
+      this.push(0, 0.16 + rand() * 0.22);
+    }
+    this.push(0, 0.6 + rand() * 0.9);
+  }
+
+  hum(rand: () => number) {
+    this.push(0.16 + rand() * 0.08, 0.22);
+    this.push(0, 0.4);
+  }
+
+  laugh(rand: () => number) {
+    const n = 3 + Math.floor(rand() * 2);
+    for (let i = 0; i < n; i++) {
+      this.push(0.55 + rand() * 0.25, 0.09);
+      this.push(0.15, 0.07);
+    }
+    this.push(0, 0.3);
+  }
+
+  step(dt: number) {
+    this.hold -= dt;
+    while (this.hold <= 0 && this.queue.length) {
+      const [open, secs] = this.queue.shift()!;
+      this.target = open;
+      this.hold += secs;
+    }
+    if (this.hold <= 0 && !this.queue.length) {
+      this.hold = 0;
+      this.target = 0;
+    }
+    this.spring.step(this.target, dt, 7, 0.75);
+  }
+}
+
 /** The face each state wears when no expression is given. */
 export const STATE_FACE: Record<RobotHeadState, RobotExpression> = {
   idle: 'neutral',
@@ -68,6 +137,8 @@ export class RobotSim {
   pose: RobotPose = { yaw: 0, pitch: 0, roll: 0, x: 0, lift: 0, breathe: 0 };
   /* the pointer, relative to the head's centre in CSS px, or null */
   pointer: { x: number; y: number } | null = null;
+  /* a level from outside (the `mouth` prop, or audio) that drives the jaw, 0–1, or null */
+  mouth: number | null = null;
   readonly springs: FaceSprings;
   /* the face drawn this frame: the springs' face with blinks laid over it */
   readonly face: FaceRig;
@@ -82,6 +153,9 @@ export class RobotSim {
   private nextBlink = 2;
   private blinkAge = -1;
   private surprise = -1;
+  private jaw = new Jaw();
+  private nextMumble = 6;
+  private mouthLevel = new Spring();
 
   constructor(seed: number, state: RobotHeadState, expression: RobotExpression | undefined, eye: RGB) {
     this.random = rng(seed);
@@ -92,9 +166,14 @@ export class RobotSim {
     this.springs = new FaceSprings(this.target);
     this.face = cloneFace(this.target);
     this.nextBlink = 1 + this.random() * 3;
+    this.nextMumble = state === 'speaking' ? 0.3 : 3 + this.random() * 4;
   }
 
   set(state: RobotHeadState, expression: RobotExpression | undefined, eye: RGB) {
+    if (state !== this.state) {
+      this.jaw.clear();
+      this.nextMumble = this.time + (state === 'speaking' ? 0.15 : 2 + this.random() * 4);
+    }
     this.state = state;
     this.expression = expression;
     this.eye = eye;
@@ -167,6 +246,36 @@ export class RobotSim {
     }
     this.springs.step(T, dt);
 
+    /* the jaw: talk while speaking, a hum or an mm-hmm now and then, a laugh when happy */
+    if (this.mouth === null && t > this.nextMumble && !this.jaw.busy) {
+      switch (this.state) {
+        case 'speaking':
+          this.jaw.phrase(rand);
+          this.nextMumble = t;
+          break;
+        case 'happy':
+          this.jaw.laugh(rand);
+          this.nextMumble = t + 2.5 + rand() * 3;
+          break;
+        case 'listening':
+          this.jaw.hum(rand);
+          this.pitch.v -= 0.5;
+          this.nextMumble = t + 3 + rand() * 3;
+          break;
+        case 'idle':
+        case 'thinking':
+          this.jaw.hum(rand);
+          this.nextMumble = t + 6 + rand() * 8;
+          break;
+        default:
+          this.nextMumble = t + 4;
+      }
+    }
+    this.jaw.step(dt);
+    /* a level from outside, eased a little so it never chatters */
+    const outside = this.mouth;
+    this.mouthLevel.step(outside === null ? 0 : Math.min(1, Math.max(0, outside)), dt, 9, 0.9);
+
     /* blinks, laid over the springs so they stay quick */
     if (t > this.nextBlink && this.state !== 'sleeping') {
       this.blinkAge = 0;
@@ -182,7 +291,8 @@ export class RobotSim {
     const S = this.springs.face, F = this.face;
     Object.assign(F.left, S.left);
     Object.assign(F.right, S.right);
-    F.jawOpen = S.jawOpen; F.jawSmile = S.jawSmile; F.teeth = S.teeth;
+    F.jawOpen = S.jawOpen + Math.max(0, this.jaw.spring.x) * 0.85 + Math.max(0, this.mouthLevel.x) * 0.9;
+    F.jawSmile = S.jawSmile; F.teeth = S.teeth;
     F.yaw = S.yaw; F.pitch = S.pitch; F.roll = S.roll;
     F.color[0] = S.color[0]; F.color[1] = S.color[1]; F.color[2] = S.color[2];
     if (blink > 0) {

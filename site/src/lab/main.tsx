@@ -103,14 +103,22 @@ function Rig() {
 function Live() {
   const [state, setState] = useState<RobotHeadState>('idle');
   const [expr, setExpr] = useState<RobotExpression | ''>('');
+  const [mouth, setMouth] = useState(-0.01);
+  const q = new URLSearchParams(location.search);
+  useEffect(() => {
+    if (q.get('state')) setState(q.get('state') as RobotHeadState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const m = mouth < 0 ? undefined : mouth;
   return (
     <section>
       <h2>Live</h2>
       <div className="row">
-        <RobotHead size={320} state={state} expression={expr || undefined} />
+        <RobotHead size={320} state={state} expression={expr || undefined} mouth={m} />
         <div className="controls">
           <label>state <select value={state} onChange={(e) => setState(e.target.value as RobotHeadState)}>{robotHeadStates.map((s) => <option key={s}>{s}</option>)}</select></label>
           <label>expression <select value={expr} onChange={(e) => setExpr(e.target.value as RobotExpression | '')}><option value="">(state's own)</option>{robotExpressions.map((e) => <option key={e}>{e}</option>)}</select></label>
+          <label>mouth <input type="range" min={-0.01} max={1} step={0.01} value={mouth} onChange={(e) => setMouth(+e.target.value)} /> {m === undefined ? 'auto' : m.toFixed(2)}</label>
         </div>
         <RobotHead size={64} state={state} expression={expr || undefined} />
         <RobotHead size={120} state={state} expression={expr || undefined} />
@@ -119,7 +127,27 @@ function Live() {
   );
 }
 
-/* ?only=likeness|rig|live shows one section, so it fits a screenshot */
+function Mouth() {
+  const big = new URLSearchParams(location.search).get('big');
+  const opens = big ? [Number(big)] : [0.14, 0.4, 0.7, 1];
+  const poses: Array<Partial<RobotPose>> = big ? [{ yaw: -0.25 }] : [{}, { yaw: -0.4, pitch: 0.12 }];
+  return (
+    <section>
+      <h2>Mouth</h2>
+      {poses.map((pose, i) => (
+        <div className="row" key={i} style={{ gap: 8 }}>
+          {opens.map((o) => {
+            const f = cloneFace(EXPRESSIONS.neutral);
+            f.jawOpen = o;
+            return <Still key={o} pose={pose} face={f} size={big ? 560 : 260} />;
+          })}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/* ?only=likeness|rig|live|mouth shows one section, so it fits a screenshot */
 const only = new URLSearchParams(location.search).get('only');
 
 function Lab() {
@@ -130,6 +158,7 @@ function Lab() {
       {show('likeness') && <Likeness />}
       {show('rig') && <Rig />}
       {show('live') && <Live />}
+      {show('mouth') && <Mouth />}
     </main>
   );
 }

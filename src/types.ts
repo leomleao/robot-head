@@ -54,6 +54,8 @@ export interface RobotHeadProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'c
   interactive?: boolean;
   /** Draw the soft shadow the head casts on its collar. Default `true`. */
   floorShadow?: boolean;
+  /** How open the jaw is, 0–1, for lip-sync from a level you already have. Replaces the procedural talking. */
+  mouth?: number;
   /** 0–1, offsets the blinks and glances so a row of robots does not move in unison. */
   seed?: number;
   className?: string;

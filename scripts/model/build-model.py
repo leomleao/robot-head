@@ -56,13 +56,13 @@ for name, key, axis in [('head', 'head', 'head'), ('jaw', 'chin', 'jaw'), ('cres
         # the flat ring round the bottom of the shell faces straight down: inside too
         mats[(n[:, 1] > 0.9) & (c[:, 1] > -0.02)] = 2
     elif axis == 'jaw':
+        # a face looking toward the middle of the bucket is inside it (its
+        # walls and floor, which show through an open mouth); a face looking
+        # away from it is outside
+        lo, hi = v[:, 1].min(), v[:, 1].max()
         zc = (v[:, 2].min() + v[:, 2].max()) / 2
-        mid = np.stack([np.zeros(len(c)), c[:, 1], np.full(len(c), zc)], axis=1)
-        inward = ((c - mid) * n).sum(axis=1) < 0
-        # the arms are thin plates: only the band's inner wall and the floor count as inside
-        band = np.abs(c[:, 0]) < np.abs(v[:, 0]).max() - 0.035
-        mats[inward & band] = 2
-        mats[(n[:, 1] < -0.9) & band] = 2
+        mid = np.array([0, lo + (hi - lo) * 0.45, zc])
+        mats[((mid - c) * n).sum(axis=1) > 0.002] = 2
     if name == 'crest':
         mats[:] = 1
     pos = np.round(v * Q).astype(np.int16)

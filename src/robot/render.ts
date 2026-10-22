@@ -20,7 +20,7 @@ export function palette(shell: RGB): Palette {
   return {
     shell: { albedo: a, f0: 0.02, metal: 0.25, spec: 0.16, shininess: 14, rim: 0.45, sheen: 0.45 },
     dark: { albedo: [a[0] * 0.32, a[1] * 0.32, a[2] * 0.32], f0: 0.03, metal: 0.3, spec: 0.12, shininess: 12, rim: 0.35 },
-    inside: { albedo: [0.004, 0.0035, 0.003], f0: 0.02, metal: 0, spec: 0, shininess: 8, rim: 0 },
+    inside: { albedo: [0.006, 0.005, 0.004], f0: 0.02, metal: 0, spec: 0, shininess: 8, rim: 0, sheen: 0.15 },
   };
 }
 
@@ -141,6 +141,9 @@ interface Projected {
   scr: Float32Array;
   jaw: boolean;
 }
+
+/* the colour of every inside surface, and of the mouth's dark */
+const INSIDE = '#0a0908';
 
 /* how far forward the crest's quads sort (a sum over four corners) */
 const CREST_BIAS = 0.1;
@@ -383,6 +386,7 @@ export class RobotRenderer {
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(0.6, U / 300);
     for (const i of idx) this.fillQuad(ctx, this.proj[this.owner[i]], this.order[i], pal);
+    this.drawTeeth(ctx, face);
 
     this.drawEye(ctx, face.right, face, -1, pal);
     this.drawEye(ctx, face.left, face, 1, pal);
@@ -410,11 +414,15 @@ export class RobotRenderer {
     const N = this.nrm;
     if (p.jaw) this.x.jawNormal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
     else this.x.normal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
-    const mat = mats[q] === MAT.dark ? pal.dark : mats[q] === MAT.inside ? pal.inside : pal.shell;
-    const col = radiance(mat, N[0], N[1], N[2], this.col);
-    const g = grimeOf(ys[q]);
-    col[0] *= g; col[1] *= g; col[2] *= g;
-    const s = css(col);
+    /* the inside of the head and the mouth: unlit, a cavity rather than a surface */
+    let s = INSIDE;
+    if (mats[q] !== MAT.inside) {
+      const mat = mats[q] === MAT.dark ? pal.dark : pal.shell;
+      const col = radiance(mat, N[0], N[1], N[2], this.col);
+      const g = grimeOf(ys[q]);
+      col[0] *= g; col[1] *= g; col[2] *= g;
+      s = css(col);
+    }
     const scr = p.scr;
     ctx.beginPath();
     for (let k = 0; k < 4; k++) {
@@ -448,27 +456,47 @@ export class RobotRenderer {
       ctx.lineTo(pt[0], pt[1]);
     }
     ctx.closePath();
-    ctx.fillStyle = '#070605';
-    ctx.fill();
-    if (face.teeth > 0.01) {
-      /* a row of squared teeth hanging from the upper lip */
-      ctx.globalAlpha = Math.min(1, face.teeth);
-      const n = 9;
-      for (let i = 0; i < n; i++) {
-        const x0 = -HEAD.r * 0.78 + (i / n) * HEAD.r * 1.56 + 0.006;
-        const x1 = x0 + (HEAD.r * 1.56) / n - 0.012;
-        ctx.beginPath();
-        const z = (x: number) => craniumFront(x, -0.01).z - 0.012;
-        X.head(x0, 0, z(x0), pt, 0); ctx.moveTo(pt[0], pt[1]);
-        X.head(x1, 0, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
-        X.head(x1, 0.045, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
-        X.head(x0, 0.045, z(x0), pt, 0); ctx.lineTo(pt[0], pt[1]);
-        ctx.closePath();
-        ctx.fillStyle = '#8f8a84';
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
+    /* and a wall across the middle of the head, so a turned head shows dark between the cranium and the jaw's arms */
+    for (const [x, y] of [[-0.34, -0.03], [0.34, -0.03], [0.34, 0.24], [-0.34, 0.24]] as const) {
+      X.head(x, y, -0.06, pt, 0);
+      if (x < 0 && y < 0) ctx.moveTo(pt[0], pt[1]);
+      else ctx.lineTo(pt[0], pt[1]);
     }
+    ctx.closePath();
+    ctx.fillStyle = INSIDE;
+    ctx.fill();
+  }
+
+  /*
+   * The teeth: a row of squared blocks hanging from the upper lip, over
+   * the dark of the mouth and so drawn after the head; only as long as the
+   * mouth is open, so a closed mouth never shows them through the lip.
+   */
+  private drawTeeth(ctx: CanvasRenderingContext2D, face: FaceRig) {
+    const open = Math.min(1, Math.max(0, (face.jawOpen - 0.12) / 0.3));
+    const k = Math.min(1, face.teeth) * open;
+    if (k < 0.02) return;
+    const X = this.x, pt = this.pt;
+    const N = this.nrm;
+    X.normal(0, 0, 1, N);
+    if (N[2] < 0.1) return;
+    const n = 9;
+    const h = 0.05 * open;
+    ctx.globalAlpha = Math.min(1, k * 1.5);
+    for (let i = 0; i < n; i++) {
+      const x0 = -HEAD.r * 0.74 + (i / n) * HEAD.r * 1.48 + 0.005;
+      const x1 = x0 + (HEAD.r * 1.48) / n - 0.01;
+      const z = (x: number) => craniumFront(x, 0).z - 0.018;
+      ctx.beginPath();
+      X.head(x0, 0.002, z(x0), pt, 0); ctx.moveTo(pt[0], pt[1]);
+      X.head(x1, 0.002, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
+      X.head(x1, h, z(x1), pt, 0); ctx.lineTo(pt[0], pt[1]);
+      X.head(x0, h, z(x0), pt, 0); ctx.lineTo(pt[0], pt[1]);
+      ctx.closePath();
+      ctx.fillStyle = '#7d7771';
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   /*
