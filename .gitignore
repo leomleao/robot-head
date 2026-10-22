@@ -29,3 +29,6 @@ dist-ssr
 !.dev.vars.example
 .env*
 !.env.example
+
+# private reference material (copyrighted stills, clips)
+inspiration/
