@@ -29,6 +29,20 @@ function rng(seed: number) {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/* a smooth hump over [a, b]: zero, with zero speed, at both ends */
+const bump = (k: number, a: number, b: number) => {
+  if (k <= a || k >= b) return 0;
+  const s = Math.sin((Math.PI * (k - a)) / (b - a));
+  return s * s;
+};
+
+/* a head shake over k in 0…1: `turns` slow swings under an envelope that eases in and out */
+const shakeCurve = (k: number, turns: number) => {
+  if (k <= 0 || k >= 1) return 0;
+  const env = Math.pow(Math.sin(Math.PI * k), 1.5);
+  return Math.sin(2 * Math.PI * turns * k) * env;
+};
+
 /*
  * The jaw's own life: a queue of moves, each a target opening held for a
  * while, chased by a quick spring so the jaw snaps like a hinge rather
@@ -250,10 +264,10 @@ export class RobotSim {
         length = sequenceLength(SEQUENCES.blink);
         break;
       case 'nod':
-        length = 1;
+        length = 1.15;
         break;
       case 'shake':
-        length = 1.2;
+        length = 1.5;
         break;
       case 'hmm':
         this.jaw.clear();
@@ -327,6 +341,8 @@ export class RobotSim {
     /* what this state does with the head, and with the eyes inside it; heavy throughout */
     let yaw = 0, pitch = 0, roll = 0, gx = 0, gy = 0, lift = 0;
     let freq = 0.9, damping = 0.75;
+    /* error's head shake, shaped like the action's and laid on top the same way */
+    let errShake = 0;
     /* whether the head turns to the pointer in this state */
     let follows = true;
     switch (this.state) {
@@ -397,8 +413,8 @@ export class RobotSim {
         break;
       case 'error': {
         /* a slow shake of the head every few seconds, and a droop between */
-        const c = ((this.since + 0.6) % 3.4) / 1.2;
-        yaw = c < 1 ? Math.sin(c * Math.PI * 3) * 0.16 * (1 - c) : 0;
+        const c = ((this.since + 0.6) % 3.6) / 1.5;
+        errShake = c < 1 ? shakeCurve(c, 1.5) * 0.15 : 0;
         pitch = -0.12;
         roll = -0.05;
         gy = 0.4;
@@ -426,14 +442,18 @@ export class RobotSim {
       const k = a.t / a.length;
       switch (a.name) {
         case 'nod':
-          /* two slow dips */
-          ap = -Math.max(0, Math.sin(k * Math.PI * 2)) * 0.18;
+          /* "Mm-hmm": two easy dips, the second smaller, the head settling after each */
+          ap = -(bump(k, 0, 0.52) + 0.55 * bump(k, 0.46, 0.96)) * 0.16;
           break;
         case 'shake':
-          ay = Math.sin(k * Math.PI * 3) * 0.18 * (1 - k);
+          /* "No": a slow, heavy swing side to side, the head rolling a little after it */
+          ay = shakeCurve(k, 1.5) * 0.2;
+          ar = -shakeCurve(k - 0.04, 1.5) * 0.04;
+          ap = -bump(k, 0, 1) * 0.04;
           break;
         case 'hmm':
-          ar = 0.18 * this.side * Math.sin(Math.min(1, k * 1.4) * Math.PI);
+          /* a slow cock of the head, held, and back */
+          ar = 0.18 * this.side * Math.pow(bump(k, 0, 1), 0.5);
           agy = -0.4;
           break;
       }
@@ -456,9 +476,9 @@ export class RobotSim {
       pitch = -clamp(look.y / 320, -1, 1) * 0.26;
       roll = -yaw * 0.1 + (this.state === 'listening' ? 0.12 : 0);
     }
-    this.yaw.step(yaw + ay, dt, freq, damping);
-    this.pitch.step(pitch + ap, dt, freq, damping);
-    this.roll.step(roll + ar, dt, freq * 0.9, damping);
+    this.yaw.step(yaw, dt, freq, damping);
+    this.pitch.step(pitch, dt, freq, damping);
+    this.roll.step(roll, dt, freq * 0.9, damping);
     gy += agy;
     this.bounce.step(0, dt, 1.7, 0.32);
 
@@ -534,10 +554,11 @@ export class RobotSim {
       if (this.seq.t > sequenceLength(seq)) this.seq = null;
     }
 
-    this.pose.yaw = this.yaw.x;
+    /* an action's motion is shaped already, so it goes on top of the springs rather than through them */
+    this.pose.yaw = this.yaw.x + ay + errShake;
     /* talking nods the head a touch with each syllable */
-    this.pose.pitch = this.pitch.x - talk * 0.04;
-    this.pose.roll = this.roll.x;
+    this.pose.pitch = this.pitch.x - talk * 0.04 + ap;
+    this.pose.roll = this.roll.x + ar;
     /* a slow float, the state's own bob, and any hop */
     this.pose.lift = Math.sin(t * 1.1) * 0.012 + lift + Math.max(0, this.bounce.x) * 0.25;
   }
