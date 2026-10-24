@@ -122,6 +122,42 @@ The head is a sculpted mesh (credited below), cut at the mouth line into a crani
 
 The eyes are drawn in the plane of the face: a dark socket, a disc of light with a small white core falling off to a warm rim, lids that clip it, an optional aperture iris, and a bloom. The jaw swings about its hinge, its top edge bending into a smile's crescent or a frown. Expressions are flat sets of numbers chased by springs, and scripted changes (a blink, waking, turning red and back) are keyframed from the film frames and laid over them.
 
+## Swift and Metal (macOS)
+
+The same robot, native: **RobotKit**, a Swift package at the repo root (macOS 27, Swift 6), drawn on the GPU with
+Metal. It matches the web version state for state and pixel for pixel (see `docs/swift-port/PARITY.md`).
+
+```swift
+// Package.swift
+.package(url: "https://github.com/leomleao/robot-head", branch: "main"),
+// target dependencies: "CharacterKit", "IronGiant"
+```
+
+```swift
+import CharacterKit
+import IronGiant
+
+let robot = IronGiantCharacter(seed: 0.3)
+let view = CharacterView(character: robot)        // a transparent MTKView; or CharacterViewRepresentable in SwiftUI
+robot.state = .thinking
+robot.expression = .curious
+await robot.play(.defense, options: ActionOptions(hold: .seconds(2)))
+
+let voice = SpeechPlayer()                        // lip-sync, in step with what is heard
+try voice.play(url: clip)
+robot.speechSource = voice
+```
+
+- **CharacterKit** is the part every character shares: the `CharacterRenderer` contract (states, expressions,
+  actions, speech level, look target, palette), `CharacterView` with its power-aware `RenderPacer` (it stops when
+  hidden, locked or idle, and slows down on battery, Low Power Mode or thermal pressure), hit-testing for
+  click-through panels, `SpeechPlayer` / `AudioLevelMeter`, and `OffscreenRenderer` for snapshots.
+- **IronGiant** is this robot behind that contract. More characters follow it (`docs/swift-port/WALL-E.md`).
+- `swift run RobotPlayground` opens a native playground beside the web one; `swift test` runs the sim's golden
+  traces from the TS, the parity stills and the snapshots.
+
+Plan, parity, measurements and how to add a character: `docs/swift-port/`.
+
 ## Development
 
 The repo is a pnpm workspace: the library at the root, the playground in `site/`, a React app on [Vite](https://vite.dev) served by a [Cloudflare Worker](https://developers.cloudflare.com/workers/). The playground runs on the library's source, so edits hot-reload there. A dev-only lab (`/lab`, never built) puts the renders next to reference stills.
@@ -140,12 +176,16 @@ src/              the library
   audio.ts          lip-sync from audio sources
   robot/            geometry, the mesh (model.ts, generated), lighting, the face rig, motion, renderer
 scripts/model/    turning the sculpt into model.ts (Blender + Python)
+scripts/swift/    the model export, golden traces and web references for the Swift port
 site/             the playground and the lab
+Package.swift     RobotKit, the Swift package
+Sources/          CharacterKit, IronGiant, RobotPlayground
+Tests/            the Swift tests
 ```
 
 ## Credits
 
-- The head is adapted from a sculpt by [EMA Labs](https://www.printables.com/model/212558), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/): re-oriented, rescaled, cut into cranium and jaw, the neck removed, decimated.
+- The head is adapted from a sculpt by [EMA Labs](https://www.printables.com/model/212558), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/): re-oriented, rescaled, cut into cranium and jaw, the neck removed, decimated. The Swift package carries the same attribution in `NOTICE`.
 - Forked from [robot-heads](https://github.com/fayazara/robot-heads) by Fayaz Ahmed.
 
 ## License
