@@ -54,6 +54,15 @@ import Testing
         #expect(budget(PacingSignals(reduceMotion: true, speaking: true)) == fps(0, .full), "a still pose does not talk")
     }
 
+    /// A character reacting or talking while the user is away still moves.
+    @Test func characterActivityHoldsOffTheIdleRows() {
+        #expect(budget(PacingSignals(userIdleSeconds: 600, characterIdleSeconds: 2)) == fps(60, .full))
+        #expect(budget(PacingSignals(userIdleSeconds: 600, characterIdleSeconds: 90)) == fps(30, .reduced))
+        #expect(budget(PacingSignals(userIdleSeconds: 600, characterIdleSeconds: 300)).isStopped)
+        // but not the other stop rows
+        #expect(budget(PacingSignals(screenLocked: true, characterIdleSeconds: 0)).isStopped)
+    }
+
     @Test func stoppedBudgetsKeepThePowerTier() {
         #expect(budget(PacingSignals(thermal: .serious, explicitlyPaused: true)) == fps(0, .low))
         #expect(budget(PacingSignals(occluded: true, onBattery: true)) == fps(0, .reduced))

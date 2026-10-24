@@ -119,3 +119,25 @@ Parallel lanes once S1 lands: **W1 ∥ W2 ∥ W3 ∥ (S2 → S3)**, while G0 is 
 - README: a Swift section. `NOTICE`. `WALL-E.md`: what a second character implements. A summary of what was
   built, the measurements and the deviations.
 - **Done when:** committed on the branch, not pushed.
+
+## Status (2026-10-24)
+
+| Node | Who | Result |
+|---|---|---|
+| S0 plan + DAG | coordinator | done |
+| G0 contract review | Leo | approved as drafted |
+| S1 skeleton | coordinator | done |
+| W1 sim + rig port | worker (`leomleao/swift-sim-port`) | done: 11 scenarios × 6 seeds of golden traces from the TS, within 5e-8 |
+| W2 pacer, signals, audio | worker (`leomleao/swift-pacer-audio`) | done |
+| W3 web references | worker (`leomleao/swift-web-refs`) | done: 32 canvas stills, reproducible |
+| S2 meshes, framing | coordinator | done |
+| S3 Metal renderer | coordinator | done |
+| S4 CharacterView | coordinator | done; pacing bugs fixed after an independent review |
+| S5 IronGiantCharacter | coordinator | done |
+| S6 playground | worker (`leomleao/swift-playground`) | done, with `--measure` |
+| S7 snapshots + parity | coordinator | done: 32/32 web stills within bounds (`PARITY.md`) |
+| G1 visible deviations | Leo | not needed: no visible deviation |
+| S8 measurements | coordinator | done (`MEASUREMENTS.md`) |
+| S9 docs | coordinator | done |
+
+All worker branches are merged into `leomleao/swift-metal-port`; nothing is pushed.

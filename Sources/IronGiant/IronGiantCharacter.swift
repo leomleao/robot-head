@@ -18,8 +18,8 @@ public final class IronGiantCharacter: CharacterRenderer {
 
     public var state: CharacterState = .idle { didSet { if state != oldValue { changed() } } }
     public var expression: CharacterExpression? { didSet { if expression != oldValue { changed() } } }
-    public var speechLevel: Float?
-    public var speechSource: (any SpeechLevelSource)?
+    public var speechLevel: Float? { didSet { if speechLevel != oldValue { onChange?() } } }
+    public var speechSource: (any SpeechLevelSource)? { didSet { if speechSource !== oldValue { onChange?() } } }
     public var lookTarget: LookTarget = .pointer
     /// `body` is the shell (default a weathered gunmetal), `eyes` the glow (default a warm white;
     /// angry and defense turn it red, attack pink). `accent` is unused.

@@ -50,6 +50,8 @@ public final class CharacterView: MTKView {
     private var framingCache: (size: CGSize, box: CGFloat?, framing: CharacterFraming)?
     /// The character drew its current look; nothing needs drawing until it changes or moves.
     private var drawnStill = false
+    /// When the character last had something new to show.
+    private var lastChange = CACurrentMediaTime()
 
     public init(character: any CharacterRenderer, device: (any MTLDevice)? = MTLCreateSystemDefaultDevice(), policy: PacingPolicy = .standard) {
         self.character = character
@@ -70,6 +72,7 @@ public final class CharacterView: MTKView {
         updateAccessibilityLabel()
 
         character.onChange = { [weak self] in
+            self?.lastChange = CACurrentMediaTime()
             self?.drawnStill = false
             self?.updateAccessibilityLabel()
             self?.requestFrame()
@@ -321,6 +324,9 @@ public final class CharacterView: MTKView {
         signals.characterAtRest = !moving
         let level = character.speechLevel ?? character.speechSource?.speechLevel ?? 0
         signals.speaking = moving && level > 0.01
+        if signals.speaking { lastChange = CACurrentMediaTime() }
+        // whole seconds, so the signals change once a second rather than every frame
+        signals.characterIdleSeconds = (CACurrentMediaTime() - lastChange).rounded(.down)
         if signals != pacer.signals { pacer.signals = signals }
 
         draw()

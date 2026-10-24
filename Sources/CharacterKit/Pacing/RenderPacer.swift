@@ -36,6 +36,11 @@ public struct PacingSignals: Sendable, Equatable {
     public var systemSleeping = false
     /// Seconds since the user last touched a keyboard, mouse or trackpad.
     public var userIdleSeconds: Double = 0
+    /// Seconds since the character last had something to show (a new state, expression or action,
+    /// or speech). The idle rows go by whichever of the two is shorter, so a character reacting to
+    /// an event, or talking, while the user is away still moves for whoever looks up.
+    /// Infinity (the default) leaves it to the user alone.
+    public var characterIdleSeconds: Double = .infinity
     /// Low Power Mode is on.
     public var lowPowerMode = false
     public var thermal: ThermalLevel = .nominal
@@ -53,7 +58,7 @@ public struct PacingSignals: Sendable, Equatable {
     /// Signals for a visible window on a cool, mains-powered, attended machine.
     public init(
         occluded: Bool = false, screenLocked: Bool = false, displayAsleep: Bool = false, systemSleeping: Bool = false,
-        userIdleSeconds: Double = 0, lowPowerMode: Bool = false, thermal: ThermalLevel = .nominal, onBattery: Bool = false,
+        userIdleSeconds: Double = 0, characterIdleSeconds: Double = .infinity, lowPowerMode: Bool = false, thermal: ThermalLevel = .nominal, onBattery: Bool = false,
         reduceMotion: Bool = false, explicitlyPaused: Bool = false, characterAtRest: Bool = false, speaking: Bool = false
     ) {
         self.occluded = occluded
@@ -61,6 +66,7 @@ public struct PacingSignals: Sendable, Equatable {
         self.displayAsleep = displayAsleep
         self.systemSleeping = systemSleeping
         self.userIdleSeconds = userIdleSeconds
+        self.characterIdleSeconds = characterIdleSeconds
         self.lowPowerMode = lowPowerMode
         self.thermal = thermal
         self.onBattery = onBattery
@@ -175,10 +181,12 @@ public final class RenderPacer {
     /// asleep, idle too long) or a paused character stops drawing whatever else applies; a stopped budget keeps the
     /// quality power allows, so redraws on change don't switch detail back and forth.
     public nonisolated static func budget(for signals: PacingSignals, policy: PacingPolicy) -> RenderBudget {
+        // nothing happening means neither the user nor the character did anything
+        let idle = min(signals.userIdleSeconds, signals.characterIdleSeconds)
         var rows = [policy.full]
         if signals.thermal >= .critical { rows.append(policy.critical) }
         if signals.thermal >= .serious || signals.lowPowerMode { rows.append(policy.constrained) }
-        if signals.onBattery || signals.userIdleSeconds >= policy.relaxAfterIdle { rows.append(policy.relaxed) }
+        if signals.onBattery || idle >= policy.relaxAfterIdle { rows.append(policy.relaxed) }
         var budget = RenderBudget(
             framesPerSecond: rows.map(\.framesPerSecond).min()!,
             quality: rows.map(\.quality).min()!
@@ -193,7 +201,7 @@ public final class RenderPacer {
         }
 
         let unseen = signals.occluded || signals.screenLocked || signals.displayAsleep || signals.systemSleeping
-            || signals.userIdleSeconds >= policy.stopAfterIdle
+            || idle >= policy.stopAfterIdle
         if unseen || signals.explicitlyPaused { budget.framesPerSecond = 0 }
         return budget
     }
