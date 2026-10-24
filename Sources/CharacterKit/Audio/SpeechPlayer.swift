@@ -16,6 +16,12 @@ public final class SpeechPlayer: SpeechLevelSource {
     /// Whether something is playing now.
     public private(set) var isPlaying = false
 
+    /// How loud it plays, 0–1; the level it reports is the audio's own, whatever this is, so a muted
+    /// voice still moves the mouth. Default 1.
+    public var volume: Float = 1 {
+        didSet { player.volume = min(1, max(0, volume)) }
+    }
+
     private var engine: AVAudioEngine?
     // Sendable: `speechLevel` reads its render time from whatever thread polls it.
     private nonisolated let player = AVAudioPlayerNode()
