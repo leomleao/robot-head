@@ -1,0 +1,1000 @@
+{
+  "generatedBy": "scripts/swift/capture-web-references.mjs",
+  "page": "site/src/lab/capture.html",
+  "dpr": 2,
+  "browser": "Chrome/153.0.8010.53",
+  "files": [
+    {
+      "file": "state-idle.png",
+      "params": {
+        "state": "idle",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "bbdc593a494516d045c28778ae5a5667bd5de6efce9ab610168911954b712c97"
+    },
+    {
+      "file": "state-thinking.png",
+      "params": {
+        "state": "thinking",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "6f0c380b83042d8485e9bb2833b605ca7824311b92b96e4fb69e6f54390b26e2"
+    },
+    {
+      "file": "state-searching.png",
+      "params": {
+        "state": "searching",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "de5a525da82807a47bca6f19cb0c097c737ef0502e10d8d2d9266fc0ec86ca31"
+    },
+    {
+      "file": "state-listening.png",
+      "params": {
+        "state": "listening",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "5707247092104045711d69bf68ce55874df1e7985425ef6d917bd2955aa41a70"
+    },
+    {
+      "file": "state-speaking.png",
+      "params": {
+        "state": "speaking",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "31fbd126dc87d6b3dd125aaaeab05e914cb5b539a113c28c3bbddf53e5ea5ae4"
+    },
+    {
+      "file": "state-working.png",
+      "params": {
+        "state": "working",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "e99a768477509b3acf8739743176ffe195dbcbef1527392fd31706b24a9c0e32"
+    },
+    {
+      "file": "state-happy.png",
+      "params": {
+        "state": "happy",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "191c42c5b9d50701d0b2c4918f3fa43a05c8f196a619ecd5fd9d18e416edb582"
+    },
+    {
+      "file": "state-error.png",
+      "params": {
+        "state": "error",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "71a075b2d9840b29f8f6584ebf6353de53840898c4f2c15c5215c9f7a2e33eb3"
+    },
+    {
+      "file": "state-sleeping.png",
+      "params": {
+        "state": "sleeping",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "aca5a1e5bc3f7c0a72f49db30db91ae73797a13bb05f2108c3d84e7756a8b8c1"
+    },
+    {
+      "file": "expression-neutral.png",
+      "params": {
+        "state": "idle",
+        "expression": "neutral",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "bbdc593a494516d045c28778ae5a5667bd5de6efce9ab610168911954b712c97"
+    },
+    {
+      "file": "expression-curious.png",
+      "params": {
+        "state": "idle",
+        "expression": "curious",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "72786d45f78e7fad1169e5030331bab2ea8e3b7316fa74b750efb43afd91c558"
+    },
+    {
+      "file": "expression-happy.png",
+      "params": {
+        "state": "idle",
+        "expression": "happy",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "5e080717391d225ae7af6de71f110b494beb265c32b24919120ecd1045df4fad"
+    },
+    {
+      "file": "expression-joyful.png",
+      "params": {
+        "state": "idle",
+        "expression": "joyful",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "f92ae208e1cec6196d221264c5a05aae835ca6238eb10f4d6207710b953b5655"
+    },
+    {
+      "file": "expression-sad.png",
+      "params": {
+        "state": "idle",
+        "expression": "sad",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "20058aa321eab069bc40f8c3bb9561a1364757678f0a14f0faeaecb3c0206524"
+    },
+    {
+      "file": "expression-sheepish.png",
+      "params": {
+        "state": "idle",
+        "expression": "sheepish",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "d1e9a59b23a4d249fbfd2e9d19fab069cb4ffc878570bc11dc3c192c30f3add0"
+    },
+    {
+      "file": "expression-sleepy.png",
+      "params": {
+        "state": "idle",
+        "expression": "sleepy",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "ab156b8d2f20ede7d2e36d8514fb636d1f9d4167fbedba7d0ddc47c670ba829e"
+    },
+    {
+      "file": "expression-suspicious.png",
+      "params": {
+        "state": "idle",
+        "expression": "suspicious",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "0f1fab1e8583e3a3b8cc7b40d135aba73e7ade76894f2c8095938fcbbe8ba791"
+    },
+    {
+      "file": "expression-content.png",
+      "params": {
+        "state": "idle",
+        "expression": "content",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "56a049188c5480aae8919738e4e7f721cd6b23f8fece11ce8a27cf2b639979d5"
+    },
+    {
+      "file": "expression-surprised.png",
+      "params": {
+        "state": "idle",
+        "expression": "surprised",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "77afc185f5d4a54658f75c3d0e13b6afb34cb5e7badfa3b976524b3649641a29"
+    },
+    {
+      "file": "expression-afraid.png",
+      "params": {
+        "state": "idle",
+        "expression": "afraid",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "b5705170d5df166a8dafe7fb22e5bb74c6bd80e9c2ebf13ee9f6d89d7d9649a7"
+    },
+    {
+      "file": "expression-determined.png",
+      "params": {
+        "state": "idle",
+        "expression": "determined",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "4497e964a47ecdc93d35d73bb0f2674879960f18d00560f89861b275b564efda"
+    },
+    {
+      "file": "expression-angry.png",
+      "params": {
+        "state": "idle",
+        "expression": "angry",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "9f12f0e6e7df1e33b17a4d186bb7bee835d7e6a6a0b3e0d0dc249052a9e9d5c5"
+    },
+    {
+      "file": "expression-attack.png",
+      "params": {
+        "state": "idle",
+        "expression": "attack",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "976635efc29394aca6847e9a895f9b334a8d7d287703961d85345907af5def68"
+    },
+    {
+      "file": "expression-defense.png",
+      "params": {
+        "state": "idle",
+        "expression": "defense",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "a3e3a90ed368b62a0e776c0ffa55e2b21c31aae05358b3847e653f8c791f4363"
+    },
+    {
+      "file": "expression-peaceful.png",
+      "params": {
+        "state": "idle",
+        "expression": "peaceful",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "85a3a0b2c029a993cb1c8809bec5e5d4750ed9775d393f9a0a089c849ad78949"
+    },
+    {
+      "file": "expression-asleep.png",
+      "params": {
+        "state": "idle",
+        "expression": "asleep",
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "3dd3c5dd47d1732556b9e1108ff216c8bdcb3cebb4c581fd02a4b4768e15ada5"
+    },
+    {
+      "file": "small-idle.png",
+      "params": {
+        "state": "idle",
+        "expression": null,
+        "size": 96,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 196,
+        "height": 246
+      },
+      "css": {
+        "width": 98,
+        "height": 123
+      },
+      "frame": {
+        "box": 96,
+        "padTop": 9,
+        "padBottom": 18,
+        "padSide": 1,
+        "unit": 103.26281821441377,
+        "cx": 49,
+        "cy": 79.3099318752241
+      },
+      "sha256": "93f21780248f7b22116605154f8ed6ad448f20023154d69b3a3d4f94b335ce93"
+    },
+    {
+      "file": "small-happy.png",
+      "params": {
+        "state": "idle",
+        "expression": "happy",
+        "size": 96,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 196,
+        "height": 246
+      },
+      "css": {
+        "width": 98,
+        "height": 123
+      },
+      "frame": {
+        "box": 96,
+        "padTop": 9,
+        "padBottom": 18,
+        "padSide": 1,
+        "unit": 103.26281821441377,
+        "cx": 49,
+        "cy": 79.3099318752241
+      },
+      "sha256": "655a97fa501d6614ed9e314e0e439472c8c6d24b4e1fbe52fe0c92dd8c5645fa"
+    },
+    {
+      "file": "small-defense.png",
+      "params": {
+        "state": "idle",
+        "expression": "defense",
+        "size": 96,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 196,
+        "height": 246
+      },
+      "css": {
+        "width": 98,
+        "height": 123
+      },
+      "frame": {
+        "box": 96,
+        "padTop": 9,
+        "padBottom": 18,
+        "padSide": 1,
+        "unit": 103.26281821441377,
+        "cx": 49,
+        "cy": 79.3099318752241
+      },
+      "sha256": "94185080202a4150dba5caba52535517cc1fc1ce15c078a54694375b98b64de7"
+    },
+    {
+      "file": "small-asleep.png",
+      "params": {
+        "state": "idle",
+        "expression": "asleep",
+        "size": 96,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 196,
+        "height": 246
+      },
+      "css": {
+        "width": 98,
+        "height": 123
+      },
+      "frame": {
+        "box": 96,
+        "padTop": 9,
+        "padBottom": 18,
+        "padSide": 1,
+        "unit": 103.26281821441377,
+        "cx": 49,
+        "cy": 79.3099318752241
+      },
+      "sha256": "bf496916eedc9f20405e11438a5bea15136525e6bd9ce78eae2b3d9f8238d7a9"
+    },
+    {
+      "file": "colors-rust-moonlight.png",
+      "params": {
+        "state": "idle",
+        "expression": null,
+        "size": 240,
+        "color": "#6b3f2e",
+        "eyeColor": "#bfe3ff",
+        "floorShadow": true,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "07f87698eb48cc882872c4ed51af404cb823ba101f5d8a357ff07a22ec2294bc"
+    },
+    {
+      "file": "floor-shadow-off.png",
+      "params": {
+        "state": "idle",
+        "expression": null,
+        "size": 240,
+        "color": null,
+        "eyeColor": null,
+        "floorShadow": false,
+        "paused": true,
+        "interactive": false
+      },
+      "canvas": {
+        "width": 484,
+        "height": 608
+      },
+      "css": {
+        "width": 242,
+        "height": 304
+      },
+      "frame": {
+        "box": 240,
+        "padTop": 20,
+        "padBottom": 44,
+        "padSide": 1,
+        "unit": 258.15704553603445,
+        "cx": 121,
+        "cy": 195.7748296880602
+      },
+      "sha256": "f2b8cfe635fe6e7bb1d3c44ab58b3a4a845aaae3c90170999db2b7d9589b38e4"
+    }
+  ]
+}
