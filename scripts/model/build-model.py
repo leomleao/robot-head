@@ -1,4 +1,6 @@
-"""Turn the exported head, jaw and crest (model.json, written by the
+"""usage: python3 -I build-model.py <model.json> <model.ts> [<model-low.json>]
+
+Turn the exported head, jaw and crest (model.json, written by the
 Blender export script) into src/robot/model.ts: positions as Int16 and
 normals as Int8, base64 encoded, with each triangle's material.
 
@@ -11,6 +13,8 @@ import numpy as np
 
 src, dst = sys.argv[1], sys.argv[2]
 m = json.load(open(src))
+# an optional second export with fewer triangles, drawn for small heads
+low = json.load(open(sys.argv[3])) if len(sys.argv) > 3 else None
 Q = 16384  # position units per head unit (±2 head units fit an Int16)
 
 def b64(a):
@@ -40,46 +44,53 @@ def smooth_normals(v, t, n, crease=38):
         out[f] = acc / (np.linalg.norm(acc) or 1)
     return out
 
-out = []
-for name, key, axis in [('head', 'head', 'head'), ('jaw', 'chin', 'jaw'), ('crest', 'head-fin', None)]:
-    p = m['parts'][key]
-    v = np.array(p['v'], dtype=np.float64)
-    t = np.array(p['t'], dtype=np.int64)
-    n = np.array(p['n'], dtype=np.float64)
-    if len(t) == 0:
-        # this head has no separate part here (its crest is part of the cranium)
-        out.append(f"  {name}: {{ pos: '', tri: '', nrm: '', mat: '' }},")
-        continue
-    c = v[t].mean(axis=1)
-    n = smooth_normals(v, t, n)
-    mats = np.zeros(len(t), dtype=np.uint8)
-    if 'inside' in p:
-        # measured in the export by casting rays outward from each face
-        mats[np.array(p['inside'], dtype=bool)] = 2
-    elif axis == 'head':
-        # the middle of the cranium at each height
-        mid = np.stack([np.zeros(len(c)), np.clip(c[:, 1], -0.42, -0.08), np.zeros(len(c))], axis=1)
-        mats[((c - mid) * n).sum(axis=1) < 0] = 2
-        # the flat ring round the bottom of the shell faces straight down: inside too
-        mats[(n[:, 1] > 0.9) & (c[:, 1] > -0.02)] = 2
-    elif axis == 'jaw':
-        # a face looking toward the middle of the bucket is inside it (its
-        # walls and floor, which show through an open mouth); a face looking
-        # away from it is outside
-        lo, hi = v[:, 1].min(), v[:, 1].max()
-        zc = (v[:, 2].min() + v[:, 2].max()) / 2
-        mid = np.array([0, lo + (hi - lo) * 0.45, zc])
-        mats[((mid - c) * n).sum(axis=1) > 0.002] = 2
-        # the cut across the top of the band, facing up, is the floor of the mouth
-        mats[(n[:, 1] < -0.9) & (c[:, 1] < lo + 0.02)] = 2
-    if name == 'crest':
-        mats[:] = 1
-    pos = np.round(v * Q).astype(np.int16)
-    nrm = np.round(n * 127).astype(np.int8)
-    out.append(f"  {name}: {{ pos: '{b64(pos)}', tri: '{b64(t.astype(np.uint16))}', nrm: '{b64(nrm)}', mat: '{b64(mats)}' }},")
-    print(name, len(v), 'verts', len(t), 'tris', int((mats == 2).sum()), 'inside')
+def encode(m):
+    out = []
+    for name, key, axis in [('head', 'head', 'head'), ('jaw', 'chin', 'jaw'), ('crest', 'head-fin', None)]:
+        p = m['parts'][key]
+        v = np.array(p['v'], dtype=np.float64)
+        t = np.array(p['t'], dtype=np.int64)
+        n = np.array(p['n'], dtype=np.float64)
+        if len(t) == 0:
+            # this head has no separate part here (its crest is part of the cranium)
+            out.append(f"  {name}: {{ pos: '', tri: '', nrm: '', mat: '' }},")
+            continue
+        c = v[t].mean(axis=1)
+        n = smooth_normals(v, t, n)
+        mats = np.zeros(len(t), dtype=np.uint8)
+        if 'inside' in p:
+            # measured in the export by casting rays outward from each face
+            mats[np.array(p['inside'], dtype=bool)] = 2
+        elif axis == 'head':
+            # the middle of the cranium at each height
+            mid = np.stack([np.zeros(len(c)), np.clip(c[:, 1], -0.42, -0.08), np.zeros(len(c))], axis=1)
+            mats[((c - mid) * n).sum(axis=1) < 0] = 2
+            # the flat ring round the bottom of the shell faces straight down: inside too
+            mats[(n[:, 1] > 0.9) & (c[:, 1] > -0.02)] = 2
+        elif axis == 'jaw':
+            # a face looking toward the middle of the bucket is inside it (its
+            # walls and floor, which show through an open mouth); a face looking
+            # away from it is outside
+            lo, hi = v[:, 1].min(), v[:, 1].max()
+            zc = (v[:, 2].min() + v[:, 2].max()) / 2
+            mid = np.array([0, lo + (hi - lo) * 0.45, zc])
+            mats[((mid - c) * n).sum(axis=1) > 0.002] = 2
+            # the cut across the top of the band, facing up, is the floor of the mouth
+            mats[(n[:, 1] < -0.9) & (c[:, 1] < lo + 0.02)] = 2
+        if name == 'crest':
+            mats[:] = 1
+        pos = np.round(v * Q).astype(np.int16)
+        nrm = np.round(n * 127).astype(np.int8)
+        out.append(f"  {name}: {{ pos: '{b64(pos)}', tri: '{b64(t.astype(np.uint16))}', nrm: '{b64(nrm)}', mat: '{b64(mats)}' }},")
+        print(name, len(v), 'verts', len(t), 'tris', int((mats == 2).sum()), 'inside')
 
-# the cranium's outline: its radius round the middle at each height, and its reach
+    # the cranium's outline: its radius round the middle at each height, and its reach
+    return out
+
+
+out = encode(m)
+out_low = encode(low) if low else out
+
 hv = np.array(m['parts']['head']['v']); jv = np.array(m['parts']['chin']['v'])
 allv = np.concatenate([hv, jv, np.array(m['parts']['head-fin']['v']).reshape(-1, 3)])
 prof = []
@@ -105,6 +116,11 @@ export const MODEL_Q = {Q};
 
 export const MODEL = {{
 {chr(10).join(out)}
+}};
+
+/** The same head with fewer triangles, for small sizes. */
+export const MODEL_LOW = {{
+{chr(10).join(out_low)}
 }};
 
 /** The jaw's hinge, [y, z] in head units. */

@@ -4,7 +4,7 @@
    sockets, the glow inside them cut by the lids, and a bloom that spills
    onto the shell. A soft shadow on the floor sits under it. */
 
-import { HEAD, HEAD_BOTTOM, HEAD_SIDE, HEAD_TOP, JAW_PANEL, MAT, craniumFront, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
+import { HEAD, HEAD_BOTTOM, HEAD_SIDE, HEAD_TOP, JAW_PANEL, LOW_DETAIL_BELOW, MAT, craniumFront, robotMeshes, rotation, shapeJaw, type Mesh, type V3 } from './geometry';
 import { css, linear, radiance, type Material } from './light';
 import type { EyeRig, FaceRig, RGB } from './rig';
 
@@ -160,8 +160,53 @@ const EYE_NORMAL_R: V3 = (() => {
 })();
 const EYE_NORMAL_L: V3 = [-EYE_NORMAL_R[0], EYE_NORMAL_R[1], EYE_NORMAL_R[2]];
 
-/* the grime: a little darker toward the bottom of each part */
-const grimeOf = (y: number) => 1 - 0.14 * smooth(-0.35, 0.3, y);
+
+/*
+ * Lit colours, cached. A colour depends only on the material, the
+ * surface's direction and its grime, so the directions are quantised on
+ * an octahedral map (a square that folds round the sphere) and the grime
+ * into a few steps, and each cell's CSS colour is worked out once.
+ */
+const OCT = 72;
+const GRIME_STEPS = 6;
+const shades = new WeakMap<Material, Array<string | undefined>>();
+function shade(m: Material, nx: number, ny: number, nz: number, y: number, col: V3): string {
+  let cells = shades.get(m);
+  if (!cells) {
+    cells = new Array(OCT * OCT * GRIME_STEPS);
+    shades.set(m, cells);
+  }
+  /* the octahedral map: project onto |x| + |y| + |z| = 1, fold the back half over the front */
+  const l = Math.abs(nx) + Math.abs(ny) + Math.abs(nz) || 1;
+  let u = nx / l, v = ny / l;
+  if (nz < 0) {
+    const ou = u;
+    u = (1 - Math.abs(v)) * (ou >= 0 ? 1 : -1);
+    v = (1 - Math.abs(ou)) * (v >= 0 ? 1 : -1);
+  }
+  const iu = Math.min(OCT - 1, Math.max(0, Math.floor((u * 0.5 + 0.5) * OCT)));
+  const iv = Math.min(OCT - 1, Math.max(0, Math.floor((v * 0.5 + 0.5) * OCT)));
+  const ig = Math.min(GRIME_STEPS - 1, Math.max(0, Math.round(smooth(-0.35, 0.3, y) * (GRIME_STEPS - 1))));
+  const key = (ig * OCT + iv) * OCT + iu;
+  let s = cells[key];
+  if (s === undefined) {
+    /* the cell's own centre direction, unfolded back */
+    let cu = ((iu + 0.5) / OCT) * 2 - 1, cv = ((iv + 0.5) / OCT) * 2 - 1;
+    let cz = 1 - Math.abs(cu) - Math.abs(cv);
+    if (cz < 0) {
+      const ou = cu;
+      cu = (1 - Math.abs(cv)) * (ou >= 0 ? 1 : -1);
+      cv = (1 - Math.abs(ou)) * (cv >= 0 ? 1 : -1);
+    }
+    const n = Math.hypot(cu, cv, cz) || 1;
+    radiance(m, cu / n, cv / n, cz / n, col);
+    const g = 1 - 0.14 * (ig / (GRIME_STEPS - 1));
+    col[0] *= g; col[1] *= g; col[2] *= g;
+    s = css(col);
+    cells[key] = s;
+  }
+  return s;
+}
 
 /* ── the eyes ────────────────────────────────────────────────────────── */
 
@@ -197,6 +242,7 @@ export class RobotRenderer {
   private zs = new Float32Array(0);
   private order = new Uint32Array(0);
   private owner = new Uint16Array(0);
+  private keys = new Float64Array(0);
   private jawPos: Float32Array | null = null;
   private x = new HeadXform();
   private nrm: V3 = [0, 0, 0];
@@ -215,23 +261,29 @@ export class RobotRenderer {
     return c;
   }
 
-  private setup() {
-    if (this.proj.length) return;
-    const m = robotMeshes();
+  /* which meshes the projections were set up for */
+  private lowDetail: boolean | null = null;
+
+  private setup(lowDetail: boolean) {
+    if (this.lowDetail === lowDetail) return;
+    this.lowDetail = lowDetail;
+    const m = robotMeshes(lowDetail);
     const list: Array<[Mesh, boolean]> = [[m.cranium, false], [m.crest, false], [m.jaw, true]];
     this.proj = list.map(([mesh, jaw]) => ({ mesh, scr: new Float32Array(mesh.pos.length), jaw }));
     const total = list.reduce((n, [mesh]) => n + mesh.quads.length / 4, 0);
     this.zs = new Float32Array(total);
     this.order = new Uint32Array(total);
     this.owner = new Uint16Array(total);
+    this.keys = new Float64Array(total);
     this.jawPos = new Float32Array(m.jaw.pos.length);
   }
 
   /** Draw a frame; `frame` is in CSS px, the canvas in device px (`dpr` per CSS px). */
   draw(ctx: CanvasRenderingContext2D, frame: Frame, dpr: number, pose: RobotPose, face: FaceRig, pal: Palette, opts: RenderOptions) {
-    this.setup();
     const W = ctx.canvas.width, H = ctx.canvas.height;
     const U = frame.unit * dpr;
+    /* a small head gets the lighter mesh: the difference doesn't show, the cost does */
+    this.setup(U < LOW_DETAIL_BELOW);
     const cx = frame.cx * dpr, cy = frame.cy * dpr;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
@@ -259,7 +311,7 @@ export class RobotRenderer {
     }
 
     /* project the head */
-    const m = robotMeshes();
+    const m = robotMeshes(this.lowDetail!);
     shapeJaw(m.jaw.pos, this.jawPos!, face.jawSmile);
     for (const p of this.proj) {
       const pos = p.mesh === m.jaw ? this.jawPos! : p.mesh.pos;
@@ -298,13 +350,18 @@ export class RobotRenderer {
         count++;
       }
     }
-    const idx = Array.from({ length: count }, (_, i) => i);
+    /* sort by depth: each key packs the depth above the item's index, so a plain numeric sort orders them */
+    const keys = this.keys;
     const zs = this.zs;
-    idx.sort((a, b) => zs[a] - zs[b]);
+    for (let i = 0; i < count; i++) keys[i] = Math.round((zs[i] + 8) * 1e5) * 65536 + i;
+    const sorted = keys.subarray(0, count).sort();
 
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(0.6, U / 300);
-    for (const i of idx) this.fillQuad(ctx, this.proj[this.owner[i]], this.order[i], pal);
+    for (let k = 0; k < count; k++) {
+      const i = sorted[k] % 65536;
+      this.fillQuad(ctx, this.proj[this.owner[i]], this.order[i], pal);
+    }
     this.drawSeams(ctx, U);
 
     /* the ink: the head's silhouette in a dark line, as drawn in the film */
@@ -335,14 +392,7 @@ export class RobotRenderer {
     if (p.jaw) this.x.jawNormal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
     else this.x.normal(normals[q * 3], normals[q * 3 + 1], normals[q * 3 + 2], N);
     /* the inside of the head and the mouth: unlit, a cavity rather than a surface */
-    let s = INSIDE;
-    if (mats[q] !== MAT.inside) {
-      const mat = mats[q] === MAT.dark ? pal.dark : pal.shell;
-      const col = radiance(mat, N[0], N[1], N[2], this.col);
-      const g = grimeOf(ys[q]);
-      col[0] *= g; col[1] *= g; col[2] *= g;
-      s = css(col);
-    }
+    const s = mats[q] === MAT.inside ? INSIDE : shade(mats[q] === MAT.dark ? pal.dark : pal.shell, N[0], N[1], N[2], ys[q], this.col);
     const scr = p.scr;
     ctx.beginPath();
     for (let k = 0; k < 4; k++) {

@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useImperativeHandle, useRef, type MouseEvent } from 'react';
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState, type MouseEvent } from 'react';
 import { listen, type AudioTap } from './audio';
 import type { RobotExpression, RobotHeadHandle, RobotHeadProps, RobotHeadState } from './types';
 import { RobotRenderer, frameFor, palette } from './robot/render';
@@ -86,6 +86,16 @@ export const RobotHead = forwardRef<RobotHeadHandle, RobotHeadProps>(function Ro
     palKey.current = shellKey;
     pal.current = palette(shell);
   }
+  /* a head scrolled out of view stops animating, and picks up where it was when it comes back */
+  const [onScreen, setOnScreen] = useState(true);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof IntersectionObserver !== 'function') return;
+    /* a margin, so a head is already moving as it scrolls in */
+    const io = new IntersectionObserver(([e]) => setOnScreen(e.isIntersecting), { rootMargin: '120px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   const stillRef = useRef(false);
   stillRef.current = still || reducedMotion();
   const speedRef = useRef(speed);
@@ -156,6 +166,7 @@ export const RobotHead = forwardRef<RobotHeadHandle, RobotHeadProps>(function Ro
       paint(false);
       return;
     }
+    if (!onScreen) return;
     return subscribe((dt) => {
       const s = sim.current!;
       const el = boxRef.current;
@@ -178,7 +189,7 @@ export const RobotHead = forwardRef<RobotHeadHandle, RobotHeadProps>(function Ro
       paint(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [still, size, stateKey, exprKey, shellKey, eyeKey, floorShadow]);
+  }, [still, onScreen, size, stateKey, exprKey, shellKey, eyeKey, floorShadow]);
 
   const click = (e: MouseEvent<HTMLSpanElement>) => {
     if (interactive && !still) sim.current?.poke();

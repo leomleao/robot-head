@@ -10,7 +10,7 @@
    chin down and back. Triangles are stored as quads repeating their last
    vertex. */
 
-import { MODEL, MODEL_BOUNDS, MODEL_EYES, MODEL_HINGE, MODEL_PROFILE, MODEL_Q } from './model';
+import { MODEL, MODEL_LOW, MODEL_BOUNDS, MODEL_EYES, MODEL_HINGE, MODEL_PROFILE, MODEL_Q } from './model';
 
 export type V3 = [number, number, number];
 
@@ -160,8 +160,18 @@ export interface RobotMeshes {
 /** The jaw's flat front panel: its half width, how far forward it stands, its top and bottom. */
 export const JAW_PANEL = { x: 0, z: 0, top: 0, bottom: 0 };
 
+/* below this many device px per head unit, the head is drawn from the lighter mesh: a 100px box at 2× is about 215 */
+export const LOW_DETAIL_BELOW = 230;
+
 let meshes: RobotMeshes | null = null;
-export function robotMeshes(): RobotMeshes {
+let low: RobotMeshes | null = null;
+/** The head's meshes, the full ones or (`lowDetail`) about a third of the triangles. */
+export function robotMeshes(lowDetail = false): RobotMeshes {
+  if (lowDetail) {
+    robotMeshes();
+    if (!low) low = { cranium: sculpt(MODEL_LOW.head), crest: sculpt(MODEL_LOW.crest), jaw: sculpt(MODEL_LOW.jaw) };
+    return low;
+  }
   if (!meshes) {
     meshes = {
       cranium: sculpt(MODEL.head),
