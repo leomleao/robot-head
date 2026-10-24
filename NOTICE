@@ -1,0 +1,13 @@
+robot-heads / RobotKit
+Copyright (c) Fayaz Ahmed and contributors. Licensed under the MIT License (see LICENSE).
+
+This software includes a 3D model adapted from third-party work:
+
+  Robot head sculpt by EMA Labs
+  https://www.printables.com/model/212558
+  Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)
+  https://creativecommons.org/licenses/by/4.0/
+
+  Adapted: re-oriented, rescaled, cut into a cranium and a jaw at the mouth line, the neck removed,
+  decimated, and its eye bowls located (scripts/model/). It ships in the TypeScript library as
+  src/robot/model.ts and in the Swift package as Sources/IronGiant/Model/ModelData.swift.
