@@ -26,9 +26,9 @@ public final class CharacterView: MTKView {
     public var onClick: ((NSEvent) -> Void)?
     /// A fixed resting box in points; nil fits the character to the bounds.
     public var preferredBox: CGFloat? { didSet { requestFrame() } }
-    /// Keep the window click-through except over the character's silhouette, by polling the mouse
-    /// and toggling `ignoresMouseEvents`. For a borderless floating panel. Default false.
-    public var managesWindowClickThrough = false { didSet { updateClickThroughTimer() } }
+    /// Keep the window click-through except over the character's silhouette, by watching the mouse
+    /// move and toggling `ignoresMouseEvents`. For a borderless floating panel. Default false.
+    public var managesWindowClickThrough = false { didSet { updateClickThroughMonitors() } }
     /// Extra reach round the silhouette for ``containsCharacter(at:)``, in points.
     public var hitSlop: CGFloat = 2
     /// Whether the character's pipelines are ready; it draws nothing before.
@@ -42,8 +42,7 @@ public final class CharacterView: MTKView {
     /// Logical time for actions while nothing is drawn (occluded, locked).
     private var hiddenTicker: Timer?
     private var hiddenLast: CFTimeInterval = 0
-    private var clickThroughTimer: Timer?
-    private var lastMouse: NSPoint?
+    private var mouseMonitors: [Any] = []
     private var framingCache: (size: CGSize, box: CGFloat?, framing: CharacterFraming)?
     /// The character drew its current look; nothing needs drawing until it changes or moves.
     private var drawnStill = false
@@ -72,6 +71,8 @@ public final class CharacterView: MTKView {
             self?.requestFrame()
         }
         pacer.onBudgetChange = { [weak self] _ in self?.applyBudget() }
+        // uncovered or unlocked while stopped, it may owe a frame for a change made meanwhile
+        pacer.onSignalsChange = { [weak self] _ in self?.applyBudget() }
         if let device {
             Task { [weak self] in
                 do {
@@ -173,28 +174,33 @@ public final class CharacterView: MTKView {
         CGPoint(x: p.x, y: isFlipped ? p.y : bounds.height - p.y)
     }
 
-    private func updateClickThroughTimer() {
-        clickThroughTimer?.invalidate()
-        clickThroughTimer = nil
-        guard managesWindowClickThrough else {
+    private func updateClickThroughMonitors() {
+        for m in mouseMonitors { NSEvent.removeMonitor(m) }
+        mouseMonitors.removeAll()
+        guard managesWindowClickThrough, window != nil else {
             window?.ignoresMouseEvents = false
             return
         }
-        let timer = Timer(timeInterval: 1.0 / 20, repeats: true) { [weak self] _ in
+        // the mouse moving anywhere: over other apps (global) or over this one (local); no polling,
+        // so a still pointer costs nothing; while frames run, each frame checks too
+        let kinds: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: kinds, handler: { [weak self] _ in
             MainActor.assumeIsolated { self?.updateClickThrough() }
+        }) {
+            mouseMonitors.append(global)
         }
-        timer.tolerance = 0.02
-        RunLoop.main.add(timer, forMode: .common)
-        clickThroughTimer = timer
+        if let local = NSEvent.addLocalMonitorForEvents(matching: kinds, handler: { [weak self] event in
+            MainActor.assumeIsolated { self?.updateClickThrough() }
+            return event
+        }) {
+            mouseMonitors.append(local)
+        }
         updateClickThrough()
     }
 
     private func updateClickThrough() {
-        guard let window else { return }
-        let mouse = NSEvent.mouseLocation
-        if mouse == lastMouse && link?.isPaused != false { return }
-        lastMouse = mouse
-        let ignore = !(isInteractive && containsCharacter(atScreenPoint: mouse))
+        guard managesWindowClickThrough, let window else { return }
+        let ignore = !(isInteractive && containsCharacter(atScreenPoint: NSEvent.mouseLocation))
         if window.ignoresMouseEvents != ignore { window.ignoresMouseEvents = ignore }
     }
 
@@ -206,16 +212,13 @@ public final class CharacterView: MTKView {
             systemSignals.attach(window: window)
             systemSignals.start()
             startLink()
-            updateClickThroughTimer()
         } else {
             systemSignals.detach()
             systemSignals.stop()
             link?.invalidate()
             link = nil
-            clickThroughTimer?.invalidate()
-            clickThroughTimer = nil
-            stopHiddenTicker()
         }
+        updateClickThroughMonitors()
         requestFrame()
     }
 
@@ -230,27 +233,33 @@ public final class CharacterView: MTKView {
     /// Draw at least one more frame, soon: after a change, or to notice motion.
     public func requestFrame() {
         drawnStill = false
-        guard window != nil else { return }
         applyBudget()
     }
 
-    private func applyBudget() {
-        guard let link else { return }
-        let budget = pacer.budget
+    /// Nobody can see it: nothing to draw, not even a last still frame.
+    private var isUnseen: Bool {
         let s = pacer.signals
-        // nobody can see it: nothing to draw, not even a last still frame
-        let unseen = s.occluded || s.screenLocked || s.displayAsleep || s.systemSleeping
-        if budget.isStopped && (drawnStill || unseen) {
-            link.isPaused = true
-            // time asleep is not time the character lived through: the next frame starts afresh
-            lastTimestamp = 0
-        } else {
-            let fps = Float(max(1, budget.framesPerSecond))
-            link.preferredFrameRateRange = CAFrameRateRange(minimum: min(fps, 10), maximum: fps, preferred: fps)
-            link.isPaused = false
+        return s.occluded || s.screenLocked || s.displayAsleep || s.systemSleeping
+    }
+
+    private func applyBudget() {
+        let budget = pacer.budget
+        var drawing = false
+        if let link {
+            if !isReady || (budget.isStopped && (drawnStill || isUnseen)) {
+                link.isPaused = true
+                // time asleep is not time the character lived through: the next frame starts afresh
+                lastTimestamp = 0
+            } else {
+                // a stopped budget still owes one frame for a change: draw it promptly
+                let fps = Float(budget.isStopped ? pacer.policy.full.framesPerSecond : budget.framesPerSecond)
+                link.preferredFrameRateRange = CAFrameRateRange(minimum: min(fps, 10), maximum: fps, preferred: fps)
+                link.isPaused = false
+                drawing = true
+            }
         }
-        // actions keep their time while nothing is drawn, so `play` returns
-        if link.isPaused && character.hasPendingActions { startHiddenTicker() } else { stopHiddenTicker() }
+        // actions keep their time while nothing is drawn (hidden, stopped, no window), so `play` returns
+        if !drawing && character.hasPendingActions { startHiddenTicker() } else { stopHiddenTicker() }
     }
 
     private func startHiddenTicker() {
@@ -312,7 +321,9 @@ public final class CharacterView: MTKView {
 
         draw()
         stats.recordCPU(CACurrentMediaTime() - started)
-        if !moving { drawnStill = true }
+        // a still character, or one the pacer has stopped, has drawn what it owed
+        if !moving || pacer.budget.isStopped { drawnStill = true }
+        updateClickThrough()
         applyBudget()
     }
 

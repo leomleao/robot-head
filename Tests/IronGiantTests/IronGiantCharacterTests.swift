@@ -28,6 +28,19 @@ import Testing
         #expect(await c.play(.nod) == .completed)
     }
 
+    /// Unpausing takes effect at once, not at the next frame.
+    @Test func anUnpausedCharacterPlays() async {
+        let c = IronGiantCharacter(seed: 0.3)
+        c.isPaused = true
+        _ = c.advance(by: 1.0 / 60, input: FrameInput(framing: framing))
+        c.isPaused = false
+        let nod = Task { await c.play(.nod) }
+        await Task.yield()
+        #expect(c.hasPendingActions)
+        await run(c, seconds: 1.3)
+        #expect(await nod.value == .completed)
+    }
+
     @Test func aNewActionInterruptsTheLast() async {
         let c = IronGiantCharacter(seed: 0.3)
         let nod = Task { await c.play(.nod) }

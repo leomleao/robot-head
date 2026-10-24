@@ -137,13 +137,21 @@ public final class RenderPacer {
     /// The table the budget is computed from.
     public var policy: PacingPolicy { didSet { recompute() } }
     /// What the system and the character are doing now.
-    public var signals: PacingSignals { didSet { recompute() } }
+    public var signals: PacingSignals {
+        didSet {
+            if signals != oldValue { onSignalsChange?(signals) }
+            recompute()
+        }
+    }
     /// A budget that overrides the policy, whatever the signals say (the playground compares tiers with it); nil follows the policy.
     public var forcedBudget: RenderBudget? { didSet { recompute() } }
     /// The budget in force.
     public private(set) var budget: RenderBudget
     /// Called with the new budget each time it changes, and only then.
     public var onBudgetChange: (@MainActor (RenderBudget) -> Void)?
+    /// Called with the new signals each time they change, whether or not the budget does (a view
+    /// uncovered while stopped still owes a frame).
+    public var onSignalsChange: (@MainActor (PacingSignals) -> Void)?
 
     /// A pacer applying `policy` to `signals`.
     public init(policy: PacingPolicy = .standard, signals: PacingSignals = PacingSignals()) {

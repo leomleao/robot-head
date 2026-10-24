@@ -31,8 +31,10 @@ public final class IronGiantCharacter: CharacterRenderer {
 
     private let sim: RobotSim
     private var renderer: IronGiantRenderer?
+    /// Reduce Motion, as the view last said.
+    private var reduceMotion = false
     /// Showing the still pose: paused, speed 0, or Reduce Motion.
-    private var still = false
+    private var still: Bool { isPaused || !(speed > 0) || reduceMotion }
     /// What was last advanced to, for drawing and hit-testing.
     private var pose = RobotPose()
     private var face = FaceRig()
@@ -70,7 +72,7 @@ public final class IronGiantCharacter: CharacterRenderer {
     public func play(_ action: CharacterAction, options: ActionOptions) async -> ActionOutcome {
         guard supportedActions.contains(action) else { return .unsupported }
         // a still head has nothing to play it on
-        if still || isPaused || !(speed > 0) { return .completed }
+        if still { return .completed }
         let hold = options.hold.map { Double($0.components.seconds) + Double($0.components.attoseconds) * 1e-18 }
         let outcome = await withCheckedContinuation { (done: CheckedContinuation<ActionOutcome, Never>) in
             sim.act(action, hold: hold) { done.resume(returning: $0) }
@@ -80,7 +82,7 @@ public final class IronGiantCharacter: CharacterRenderer {
     }
 
     public func poke() {
-        guard !still, !isPaused, speed > 0 else { return }
+        guard !still else { return }
         sim.poke()
         onChange?()
     }
@@ -97,7 +99,7 @@ public final class IronGiantCharacter: CharacterRenderer {
     }
 
     public func advance(by seconds: Double, input: FrameInput) -> Bool {
-        still = isPaused || !(speed > 0) || input.reduceMotion
+        reduceMotion = input.reduceMotion
         if still {
             // the state's still pose with its face; an action already playing runs out unseen
             if sim.isActing { sim.update(seconds) }

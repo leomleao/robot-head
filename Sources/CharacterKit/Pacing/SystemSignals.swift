@@ -107,12 +107,9 @@ public final class SystemSignals {
             center.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.readOcclusion() }
             },
-            // A closed window is never seen again; a released one would leave a stale signal.
+            // A closed window is unseen until it is shown again, which its occlusion change reports.
             center.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    self?.detach()
-                    self?.pacer.signals.occluded = true
-                }
+                MainActor.assumeIsolated { self?.pacer.signals.occluded = true }
             },
         ]
         readOcclusion()

@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// A ``CharacterView`` in SwiftUI. The character is the model: keep it alive (e.g. in `@State`)
-/// and set its state, expression and the rest on it directly.
+/// and set its state, expression and the rest on it directly. A view keeps the character it was
+/// made with: to swap characters, give the representable a new identity (`.id(...)`).
 ///
 /// ```swift
 /// @State private var robot = IronGiantCharacter(seed: 0.3)

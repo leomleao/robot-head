@@ -509,7 +509,9 @@ final class IronGiantRenderer {
         depth.usage = .renderTarget
         depth.storageMode = .memoryless
         depthTexture = device.makeTexture(descriptor: depth)
-        targetKey = (width, height, samples)
-        return headTexture != nil && depthTexture != nil && (samples == 1 || msaaTexture != nil)
+        let ok = headTexture != nil && depthTexture != nil && (samples == 1 || msaaTexture != nil)
+        // remember the size only once it is all there, so a failure is retried next frame
+        targetKey = ok ? (width, height, samples) : (0, 0, 0)
+        return ok
     }
 }
