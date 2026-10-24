@@ -39,7 +39,7 @@ import Testing
         let c = IronGiantCharacter(seed: 0.5)
         c.state = CharacterState(rawValue: p.state) ?? .idle
         c.expression = p.expression.map(CharacterExpression.init(rawValue:))
-        c.palette = CharacterPalette(body: p.color.flatMap(RGBColor.init(hex:)), eyes: p.eyeColor.flatMap(RGBColor.init(hex:)))
+        c.palette = CharacterPalette(body: p.color.flatMap(CharacterColor.init(hex:)), eyes: p.eyeColor.flatMap(CharacterColor.init(hex:)))
         c.showsFloorShadow = p.floorShadow
         c.isPaused = true
         return try await renderer.image(of: c, box: p.size, scale: 2)

@@ -16,6 +16,10 @@ public final class SpeechPlayer: SpeechLevelSource {
     /// Whether something is playing now.
     public private(set) var isPlaying = false
 
+    /// Called when what was playing has been heard to its end (not after ``stop()`` or a new
+    /// `play`): the cue to set the character back from speaking.
+    public var onFinish: (@MainActor () -> Void)?
+
     /// How loud it plays, 0–1; the level it reports is the audio's own, whatever this is, so a muted
     /// voice still moves the mouth. Default 1.
     public var volume: Float = 1 {
@@ -69,6 +73,7 @@ public final class SpeechPlayer: SpeechLevelSource {
         guard playing == generation else { return }
         current.withLock { $0 = nil }
         isPlaying = false
+        onFinish?()
     }
 
     private func prepareEngine(for format: AVAudioFormat) throws -> AVAudioEngine {

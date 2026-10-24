@@ -1,7 +1,7 @@
 import Foundation
 
 /// A colour in sRGB, each channel 0–1.
-public struct RGBColor: Hashable, Sendable, Codable {
+public struct CharacterColor: Hashable, Sendable, Codable {
     public var red: Double
     public var green: Double
     public var blue: Double
@@ -44,14 +44,14 @@ private extension String {
 /// A character's colours. Every slot is optional: nil takes the character's own default.
 public struct CharacterPalette: Hashable, Sendable, Codable {
     /// The body: the Iron Giant's shell, WALL-E's body.
-    public var body: RGBColor?
+    public var body: CharacterColor?
     /// The eyes' glow or lens tint. A character may override it where colour is the point
     /// (the Iron Giant's red eyes in `angry` and `defense`).
-    public var eyes: RGBColor?
+    public var eyes: CharacterColor?
     /// A third colour, for characters that have one (WALL-E's treads). The Iron Giant ignores it.
-    public var accent: RGBColor?
+    public var accent: CharacterColor?
 
-    public init(body: RGBColor? = nil, eyes: RGBColor? = nil, accent: RGBColor? = nil) {
+    public init(body: CharacterColor? = nil, eyes: CharacterColor? = nil, accent: CharacterColor? = nil) {
         self.body = body
         self.eyes = eyes
         self.accent = accent

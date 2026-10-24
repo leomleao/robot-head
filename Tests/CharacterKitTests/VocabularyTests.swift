@@ -17,9 +17,9 @@ import Testing
     }
 
     @Test func hexColours() {
-        #expect(RGBColor(hex: "#3c373f")?.hex == "#3c373f")
-        #expect(RGBColor(hex: "fff")?.hex == "#ffffff")
-        #expect(RGBColor(hex: "#12345") == nil)
-        #expect(RGBColor(hex: "red") == nil)
+        #expect(CharacterColor(hex: "#3c373f")?.hex == "#3c373f")
+        #expect(CharacterColor(hex: "fff")?.hex == "#ffffff")
+        #expect(CharacterColor(hex: "#12345") == nil)
+        #expect(CharacterColor(hex: "red") == nil)
     }
 }

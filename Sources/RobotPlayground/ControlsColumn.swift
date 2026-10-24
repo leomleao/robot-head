@@ -176,7 +176,7 @@ struct Segments<Value: Hashable>: View {
 struct SwatchRow: View {
     let label: String
     let swatches: [Swatch]
-    @Binding var value: RGBColor
+    @Binding var value: CharacterColor
 
     var body: some View {
         let known = swatches.first { $0.color == value }
@@ -197,7 +197,7 @@ struct SwatchRow: View {
                     .help(s.name)
                     .accessibilityLabel("\(label): \(s.name)")
                 }
-                ColorPicker("Custom", selection: Binding(get: { Color(value) }, set: { value = RGBColor($0) }), supportsOpacity: false)
+                ColorPicker("Custom", selection: Binding(get: { Color(value) }, set: { value = CharacterColor($0) }), supportsOpacity: false)
                     .labelsHidden()
                     .help("Custom")
             }
@@ -229,12 +229,12 @@ struct Readouts: View {
 }
 
 extension Color {
-    init(_ c: RGBColor) {
+    init(_ c: CharacterColor) {
         self.init(.sRGB, red: c.red, green: c.green, blue: c.blue)
     }
 }
 
-extension RGBColor {
+extension CharacterColor {
     init(_ color: Color) {
         let c = NSColor(color).usingColorSpace(.sRGB) ?? .black
         self.init(red: Double(c.redComponent), green: Double(c.greenComponent), blue: Double(c.blueComponent))

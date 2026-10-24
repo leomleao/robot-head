@@ -8,6 +8,9 @@ import Synchronization
 /// ``CharacterRenderer/poke()``, and answers whether a point is on the character, for a
 /// click-through panel.
 ///
+/// A character lives in one view at a time: the view advances it every frame and owns its
+/// ``CharacterRenderer/onChange``. To show it elsewhere, move it to a new view.
+///
 /// The character is laid out to fit the view: the largest resting box whose canvas fits the bounds,
 /// centred, unless ``preferredBox`` fixes it. Use ``canvasSize(for:box:)`` to size a window so a
 /// box of a given size fits exactly.
@@ -22,7 +25,8 @@ public final class CharacterView: MTKView {
 
     /// Follow the pointer and react to clicks. Default true.
     public var isInteractive = true
-    /// Called for a click on the character (after it has been poked).
+    /// Called for a press on the character, on mouse down (after it has been poked); a panel can
+    /// start a window drag from it with `window.performDrag(with:)`.
     public var onClick: ((NSEvent) -> Void)?
     /// A fixed resting box in points; nil fits the character to the bounds.
     public var preferredBox: CGFloat? { didSet { requestFrame() } }

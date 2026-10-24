@@ -9,9 +9,6 @@ import IronGiant
 import Observation
 import SwiftUI
 
-/// CharacterKit's colour, not QuickDraw's, which AppKit also brings in.
-typealias RGBColor = CharacterKit.RGBColor
-
 /// The site's background, by day or by night.
 enum Theme: String {
     case dark, light
@@ -125,6 +122,11 @@ final class PlaygroundModel {
         self.seed = seed
         character = IronGiantCharacter(seed: seed)
         panel.onClose = { [weak self] in self?.panelClosed() }
+        // the voice ended: the mouth goes back to the sim's own talking
+        speech.onFinish = { [weak self] in
+            self?.speechFile = nil
+            self?.applyMouth()
+        }
         let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -248,10 +250,6 @@ final class PlaygroundModel {
     // MARK: Readouts
 
     private func tick() {
-        if speechFile != nil && !speech.isPlaying {
-            speechFile = nil
-            applyMouth()
-        }
         guard let view else { return }
         stats = sampler.sample(view)
     }
@@ -260,12 +258,12 @@ final class PlaygroundModel {
 /// A named colour from the site's swatches.
 struct Swatch: Identifiable {
     let name: String
-    let color: RGBColor
+    let color: CharacterColor
     var id: String { name }
 
     init(_ name: String, _ hex: String) {
         self.name = name
-        color = RGBColor(hex: hex)!
+        color = CharacterColor(hex: hex)!
     }
 
     static let shells = [

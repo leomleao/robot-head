@@ -34,7 +34,7 @@ Package.swift
 Sources/
   CharacterKit/            character-agnostic: the contract, the view, pacing, audio
     Vocabulary.swift         CharacterState, CharacterExpression, CharacterAction, ActionOptions, ActionOutcome
-    Appearance.swift         RGBColor, CharacterPalette
+    Appearance.swift         CharacterColor, CharacterPalette
     CharacterRenderer.swift  the protocol, FrameInput, CharacterFraming, RenderTarget, QualityTier
     Registry.swift           renderer id → factory, for Buddy's data-driven character packs
     View/CharacterView.swift       MTKView subclass: display link, pacing, pointer, click, hit-testing
@@ -98,12 +98,12 @@ public struct CharacterAction: RawRepresentable, Hashable, Sendable, Codable, Ex
 public struct ActionOptions: Sendable { public var hold: Duration? }        // defense: how long the eyes stay red
 public enum ActionOutcome: Sendable { case completed, interrupted, unsupported }
 
-public struct RGBColor: Sendable, Hashable, Codable { public var red, green, blue: Double /* sRGB 0–1 */; init?(hex:) }
+public struct CharacterColor: Sendable, Hashable, Codable { public var red, green, blue: Double /* sRGB 0–1 */; init?(hex:) }
 /// Every slot optional: nil means the character's own default.
 public struct CharacterPalette: Sendable, Hashable, Codable {
-    public var body: RGBColor?      // Iron Giant: the shell.  WALL-E: the body.
-    public var eyes: RGBColor?      // the eyes' glow / lens tint
-    public var accent: RGBColor?    // a character's third colour (WALL-E's treads); Iron Giant ignores it
+    public var body: CharacterColor?      // Iron Giant: the shell.  WALL-E: the body.
+    public var eyes: CharacterColor?      // the eyes' glow / lens tint
+    public var accent: CharacterColor?    // a character's third colour (WALL-E's treads); Iron Giant ignores it
 }
 
 public enum LookTarget: Sendable, Equatable {
@@ -332,3 +332,6 @@ measurements and docs.
   and `speechSource` (live), not `setMouth`; `LookTarget.point` in global screen points.
 - Branch reset onto local `main` (a70d4de), not `origin/main`, which predates the Iron Giant.
 - Shaders compile at runtime from embedded MSL; the model ships as generated Swift string literals (§2).
+- **After G0, a rename:** `RGBColor` became `CharacterColor`, because AppKit brings in QuickDraw's `RGBColor` and
+  every Buddy file importing both would have had to disambiguate (found by W4 building the playground). Same shape
+  and meaning. `SpeechPlayer` gained `volume` and `onFinish`.

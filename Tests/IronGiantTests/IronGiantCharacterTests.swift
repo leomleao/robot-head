@@ -83,7 +83,7 @@ import Testing
         c.state = .thinking
         c.state = .thinking
         c.expression = .happy
-        c.palette.eyes = RGBColor(hex: "#bfe3ff")
+        c.palette.eyes = CharacterColor(hex: "#bfe3ff")
         #expect(changes == 3)
     }
 
