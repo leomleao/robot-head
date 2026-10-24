@@ -231,14 +231,19 @@ public final class CharacterView: MTKView {
     public func requestFrame() {
         drawnStill = false
         guard window != nil else { return }
-        link?.isPaused = false
+        applyBudget()
     }
 
     private func applyBudget() {
         guard let link else { return }
         let budget = pacer.budget
-        if budget.isStopped && drawnStill {
+        let s = pacer.signals
+        // nobody can see it: nothing to draw, not even a last still frame
+        let unseen = s.occluded || s.screenLocked || s.displayAsleep || s.systemSleeping
+        if budget.isStopped && (drawnStill || unseen) {
             link.isPaused = true
+            // time asleep is not time the character lived through: the next frame starts afresh
+            lastTimestamp = 0
         } else {
             let fps = Float(max(1, budget.framesPerSecond))
             link.preferredFrameRateRange = CAFrameRateRange(minimum: min(fps, 10), maximum: fps, preferred: fps)
