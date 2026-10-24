@@ -323,3 +323,12 @@ that is not a bug, it goes to Leo (gate G1).
 See `DAG.md`. Workers in their own Orca worktrees take the sim port, pacing + audio, and the web reference capture
 in parallel; the coordinator (this worktree) takes the skeleton, model, renderer, view, integration, snapshots,
 measurements and docs.
+
+## 12. Decisions log
+
+- **2026-10-24, G0, contract approved by Leo as drafted in §3:** open string-backed vocabularies for expressions
+  and actions (states a closed enum); one shared `CharacterView` owns the view, the Metal layer, pacing, input and
+  hit-testing, and characters only implement prepare/advance/encode/hitTest; speech through `speechLevel` (fixed)
+  and `speechSource` (live), not `setMouth`; `LookTarget.point` in global screen points.
+- Branch reset onto local `main` (a70d4de), not `origin/main`, which predates the Iron Giant.
+- Shaders compile at runtime from embedded MSL; the model ships as generated Swift string literals (§2).
