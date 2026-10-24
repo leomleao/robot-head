@@ -12,33 +12,6 @@ import CharacterKit
 import Metal
 import simd
 
-/// One eye's numbers, as the face rig has them.
-struct RenderEye: Equatable {
-    var lidTop = 0.0
-    var lidBottom = 0.0
-    var lidAngle = 0.0
-    var lidCurve = 0.0
-    var glow = 1.0
-    var size = 1.0
-    var shape = 0.0
-    var pupil = 0.0
-    var gazeX = 0.0
-    var gazeY = 0.0
-}
-
-/// The face to draw: the robot's own left and right eyes, the glow's colour (sRGB 0–255), the jaw,
-/// and offsets added to the head's pose.
-struct RenderFace: Equatable {
-    var left = RenderEye()
-    var right = RenderEye()
-    var color = SIMD3<Double>(255, 236, 226)
-    var jawOpen = 0.04
-    var jawSmile = 0.3
-    var yaw = 0.0
-    var pitch = 0.0
-    var roll = 0.0
-}
-
 /// Everything one frame needs.
 struct RenderScene {
     var frame: Frame
@@ -47,7 +20,7 @@ struct RenderScene {
     /// Pixels per point.
     var scale = 2.0
     var pose = RobotPose()
-    var face = RenderFace()
+    var face = FaceRig()
     /// The shell's colour, sRGB 0–255.
     var shell = Palette.defaultShell
     var shadow = true
@@ -400,7 +373,7 @@ final class IronGiantRenderer {
     /// One eye's numbers for the GPU, or nil when it faces away. `side` is −1 for the eye on the
     /// viewer's left. Everything is in the eye's own patch of the face, in head units centred on
     /// the socket, as the TS draws it after mapping that patch's tangent plane to the screen.
-    static func eyeUniforms(_ e: RenderEye, side: Double, face: RenderFace, palette: Palette, transform x: HeadTransform, viewport: SIMD2<Double>) -> EyeUniforms? {
+    static func eyeUniforms(_ e: EyeRig, side: Double, face: FaceRig, palette: Palette, transform x: HeadTransform, viewport: SIMD2<Double>) -> EyeUniforms? {
         let smooth = Lighting.smooth
         let n = side < 0 ? eyeNormalLeft : eyeNormalRight
         let world = x.normal(n)

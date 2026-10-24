@@ -42,7 +42,7 @@ import Testing
 
     @Test func variety() async throws {
         var happy = RenderScene(frame: Frame(box: 240))
-        happy.face.left = RenderEye(lidTop: 0.28, lidBottom: 0.3, lidCurve: 0.5)
+        happy.face.left = EyeRig(lidTop: 0.28, lidBottom: 0.3, lidCurve: 0.5)
         happy.face.right = happy.face.left
         happy.face.jawSmile = 1
         happy.face.jawOpen = 0.2
@@ -51,7 +51,7 @@ import Testing
         Self.keep(try await Self.render(happy), "happy")
 
         var defense = RenderScene(frame: Frame(box: 240))
-        defense.face.left = RenderEye(glow: 1.4, pupil: 0.82)
+        defense.face.left = EyeRig(glow: 1.4, pupil: 0.82)
         defense.face.right = defense.face.left
         defense.face.color = [255, 38, 24]
         defense.face.jawSmile = 0
@@ -59,7 +59,7 @@ import Testing
         Self.keep(try await Self.render(defense), "defense")
 
         var asleep = RenderScene(frame: Frame(box: 240))
-        asleep.face.left = RenderEye(lidTop: 0.56, lidBottom: 0.46, glow: 0.1)
+        asleep.face.left = EyeRig(lidTop: 0.56, lidBottom: 0.46, glow: 0.1)
         asleep.face.right = asleep.face.left
         asleep.face.jawSmile = 0
         asleep.face.jawOpen = 0
