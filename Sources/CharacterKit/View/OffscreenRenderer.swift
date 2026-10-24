@@ -6,7 +6,6 @@ import Metal
 public final class OffscreenRenderer {
     public let device: any MTLDevice
     private let queue: any MTLCommandQueue
-    private var prepared: Set<ObjectIdentifier> = []
 
     public enum Failure: Error {
         case noDevice
@@ -23,11 +22,8 @@ public final class OffscreenRenderer {
     /// The character's canvas for a resting box of `box` points, at `scale` pixels per point, after
     /// advancing it by `seconds` (0 draws it as it is now).
     public func image(of character: any CharacterRenderer, box: CGFloat, scale: CGFloat = 2, quality: QualityTier = .full, advancing seconds: Double = 0, input: FrameInput? = nil) async throws -> CGImage {
-        let id = ObjectIdentifier(character)
-        if !prepared.contains(id) {
-            try await character.prepare(device: device)
-            prepared.insert(id)
-        }
+        // characters make preparing again cheap
+        try await character.prepare(device: device)
         let framing = character.framing(forBox: box)
         _ = character.advance(by: seconds, input: input ?? FrameInput(framing: framing))
         let w = Int((framing.canvasSize.width * scale).rounded()), h = Int((framing.canvasSize.height * scale).rounded())

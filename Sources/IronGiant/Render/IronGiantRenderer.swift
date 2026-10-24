@@ -10,6 +10,7 @@
 
 import CharacterKit
 import Metal
+import Synchronization
 import simd
 
 /// Everything one frame needs.
@@ -95,34 +96,30 @@ enum Palette8 {
 private let eyeNormalRight = simd_normalize(SIMD3<Double>(0.3, -0.16, 1))
 private let eyeNormalLeft = SIMD3(-eyeNormalRight.x, eyeNormalRight.y, eyeNormalRight.z)
 
-final class IronGiantRenderer {
+/// What every Iron Giant on a device shares: the compiled shaders, pipeline states and meshes.
+/// Immutable after init, and Metal's state objects are thread-safe, so it is shared freely.
+final class IronGiantPipelines: @unchecked Sendable {
     let device: any MTLDevice
-    private let meshPipelines: [Int: any MTLRenderPipelineState]
-    private let platePipelines: [Int: any MTLRenderPipelineState]
-    private let linePipelines: [Int: any MTLRenderPipelineState]
-    private let shadowPipeline: any MTLRenderPipelineState
-    private let compositePipeline: any MTLRenderPipelineState
-    private let eyePipeline: any MTLRenderPipelineState
-    private let bloomPipeline: any MTLRenderPipelineState
-    private let depthOn: any MTLDepthStencilState
-    private let depthOff: any MTLDepthStencilState
+    let meshPipelines: [Int: any MTLRenderPipelineState]
+    let platePipelines: [Int: any MTLRenderPipelineState]
+    let linePipelines: [Int: any MTLRenderPipelineState]
+    let shadowPipeline: any MTLRenderPipelineState
+    let compositePipeline: any MTLRenderPipelineState
+    let eyePipeline: any MTLRenderPipelineState
+    let bloomPipeline: any MTLRenderPipelineState
+    let depthOn: any MTLDepthStencilState
+    let depthOff: any MTLDepthStencilState
 
-    private struct MeshBuffers {
+    struct MeshBuffers {
         let cranium: any MTLBuffer
         let craniumCount: Int
         let jaw: any MTLBuffer
         let jawCount: Int
     }
-    private let fullMesh: MeshBuffers
-    private let lowMesh: MeshBuffers
-    private let plate: any MTLBuffer
-    private let plateCount: Int
-
-    /// The head pass's textures, kept while the size and sample count stay the same.
-    private var headTexture: (any MTLTexture)?
-    private var msaaTexture: (any MTLTexture)?
-    private var depthTexture: (any MTLTexture)?
-    private var targetKey: (width: Int, height: Int, samples: Int) = (0, 0, 0)
+    let fullMesh: MeshBuffers
+    let lowMesh: MeshBuffers
+    let plate: any MTLBuffer
+    let plateCount: Int
 
     static let pixelFormat = MTLPixelFormat.bgra8Unorm
     static let depthFormat = MTLPixelFormat.depth32Float
@@ -132,10 +129,27 @@ final class IronGiantRenderer {
         case function(String)
     }
 
-    /// Compiles the shaders (asynchronously, off the calling thread) and uploads the meshes.
-    static func make(device: any MTLDevice) async throws -> IronGiantRenderer {
-        let library = try await device.makeLibrary(source: Shaders.source, options: nil)
-        return try IronGiantRenderer(device: device, library: library)
+    /// Compilations by device, so a second robot doesn't compile the shaders again.
+    private static let cache = Mutex<[UInt64: Task<IronGiantPipelines, any Error>]>([:])
+
+    /// The shared pipelines for `device`, compiled (asynchronously, off the calling thread) on first use.
+    static func shared(for device: any MTLDevice) async throws -> IronGiantPipelines {
+        let task = cache.withLock { tasks in
+            if let t = tasks[device.registryID] { return t }
+            let t = Task.detached(priority: .userInitiated) {
+                let library = try await device.makeLibrary(source: Shaders.source, options: nil)
+                return try IronGiantPipelines(device: device, library: library)
+            }
+            tasks[device.registryID] = t
+            return t
+        }
+        do {
+            return try await task.value
+        } catch {
+            // a failed compile may succeed later (say, the GPU was busy being reset)
+            _ = cache.withLock { $0.removeValue(forKey: device.registryID) }
+            throw error
+        }
     }
 
     private init(device: any MTLDevice, library: any MTLLibrary) throws {
@@ -227,6 +241,28 @@ final class IronGiantRenderer {
         return out
     }
 
+}
+
+/// One robot's drawing: the shared pipelines, and its own head-pass textures.
+final class IronGiantRenderer {
+    let gpu: IronGiantPipelines
+    var device: any MTLDevice { gpu.device }
+
+    /// The head pass's textures, kept while the size and sample count stay the same.
+    private var headTexture: (any MTLTexture)?
+    private var msaaTexture: (any MTLTexture)?
+    private var depthTexture: (any MTLTexture)?
+    private var targetKey: (width: Int, height: Int, samples: Int) = (0, 0, 0)
+
+    private init(gpu: IronGiantPipelines) {
+        self.gpu = gpu
+    }
+
+    /// A renderer on the device's shared pipelines, compiling them first if no robot has yet.
+    static func make(device: any MTLDevice) async throws -> IronGiantRenderer {
+        IronGiantRenderer(gpu: try await IronGiantPipelines.shared(for: device))
+    }
+
     // MARK: - Drawing
 
     func encode(_ scene: RenderScene, into target: any MTLTexture, commandBuffer: any MTLCommandBuffer, quality: QualityTier) {
@@ -243,7 +279,7 @@ final class IronGiantRenderer {
         let x = HeadTransform(pose: pose, jawOpen: face.jawOpen, cx: cx, cy: cy, u: u)
         let samples = quality == .low ? 1 : 4
         // a small head gets the lighter mesh: the difference doesn't show, the cost does
-        let mesh = quality == .low || u < RobotMeshes.lowDetailBelow ? lowMesh : fullMesh
+        let mesh = quality == .low || u < RobotMeshes.lowDetailBelow ? gpu.lowMesh : gpu.fullMesh
         guard prepareTargets(width: width, height: height, samples: samples), let headTexture else { return }
 
         // ── 1. the head, offscreen ──
@@ -276,19 +312,19 @@ final class IronGiantRenderer {
             hinge: SIMD4(Float(Head.hingeY), Float(Head.hingeZ), Float(RobotMeshes.jawTop), 0)
         )
         // the inside of the mouth, behind everything else on the head
-        enc.setRenderPipelineState(platePipelines[samples]!)
-        enc.setDepthStencilState(depthOff)
-        enc.setVertexBuffer(plate, offset: 0, index: 0)
+        enc.setRenderPipelineState(gpu.platePipelines[samples]!)
+        enc.setDepthStencilState(gpu.depthOff)
+        enc.setVertexBuffer(gpu.plate, offset: 0, index: 0)
         enc.setVertexBytes(&head, length: MemoryLayout<HeadUniforms>.stride, index: 1)
         var inside = SIMD4<Float>(Palette8.inside, 1)
         enc.setFragmentBytes(&inside, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
-        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: plateCount)
+        enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: gpu.plateCount)
 
         // the cranium and the jaw
         let palette = Palette(shell: scene.shell)
         var lighting = GPULighting(shell: GPUMaterial(palette.shell), dark: GPUMaterial(palette.dark), inside: SIMD4(Palette8.inside, 1))
-        enc.setRenderPipelineState(meshPipelines[samples]!)
-        enc.setDepthStencilState(depthOn)
+        enc.setRenderPipelineState(gpu.meshPipelines[samples]!)
+        enc.setDepthStencilState(gpu.depthOn)
         enc.setFragmentBytes(&lighting, length: MemoryLayout<GPULighting>.stride, index: 0)
         enc.setVertexBuffer(mesh.cranium, offset: 0, index: 0)
         enc.setVertexBytes(&head, length: MemoryLayout<HeadUniforms>.stride, index: 1)
@@ -302,8 +338,8 @@ final class IronGiantRenderer {
         let panel = RobotMeshes.jawPanel
         let facing = x.jawNormal(SIMD3(0, 0, 1)).z
         if facing >= 0.05 && panel.x > 0 {
-            enc.setRenderPipelineState(linePipelines[samples]!)
-            enc.setDepthStencilState(depthOff)
+            enc.setRenderPipelineState(gpu.linePipelines[samples]!)
+            enc.setDepthStencilState(gpu.depthOff)
             for s in [-1.0, 1.0] {
                 let a = x.jaw(SIMD3(s * panel.x, panel.top + 0.004, panel.z))
                 let b = x.jaw(SIMD3(s * panel.x, panel.bottom - 0.004, panel.z))
@@ -339,7 +375,7 @@ final class IronGiantRenderer {
                     axisYView: SIMD4(0, Float(rx * 0.16), Float(width), Float(height))
                 )
                 var shadow = SIMD4<Float>(Float(a), 0, 0, 0)
-                canvas.setRenderPipelineState(shadowPipeline)
+                canvas.setRenderPipelineState(gpu.shadowPipeline)
                 canvas.setVertexBytes(&quad, length: MemoryLayout<QuadUniforms>.stride, index: 0)
                 canvas.setFragmentBytes(&shadow, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
                 canvas.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
@@ -350,7 +386,7 @@ final class IronGiantRenderer {
         // silhouette by half a line; the outline reaches that much further to land in the same place
         let stroke = max(0.6, u / 300)
         var ink = SIMD4<Float>(Palette8.ink, Float(max(1, u * 0.008) + stroke / 2))
-        canvas.setRenderPipelineState(compositePipeline)
+        canvas.setRenderPipelineState(gpu.compositePipeline)
         canvas.setFragmentTexture(headTexture, index: 0)
         canvas.setFragmentBytes(&ink, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
         canvas.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
@@ -358,12 +394,12 @@ final class IronGiantRenderer {
         // the eyes: the robot's right one is on the viewer's left
         for (eye, side) in [(face.right, -1.0), (face.left, 1.0)] {
             guard var e = Self.eyeUniforms(eye, side: side, face: face, palette: palette, transform: x, viewport: SIMD2(Double(width), Double(height))) else { continue }
-            canvas.setRenderPipelineState(eyePipeline)
+            canvas.setRenderPipelineState(gpu.eyePipeline)
             canvas.setVertexBytes(&e, length: MemoryLayout<EyeUniforms>.stride, index: 0)
             canvas.setFragmentBytes(&e, length: MemoryLayout<EyeUniforms>.stride, index: 0)
             canvas.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
             if e.light.w > 0.5 {
-                canvas.setRenderPipelineState(bloomPipeline)
+                canvas.setRenderPipelineState(gpu.bloomPipeline)
                 canvas.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
             }
         }
@@ -453,12 +489,12 @@ final class IronGiantRenderer {
 
     private func prepareTargets(width: Int, height: Int, samples: Int) -> Bool {
         if headTexture != nil && targetKey == (width, height, samples) { return true }
-        let head = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.pixelFormat, width: width, height: height, mipmapped: false)
+        let head = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: IronGiantPipelines.pixelFormat, width: width, height: height, mipmapped: false)
         head.usage = [.renderTarget, .shaderRead]
         head.storageMode = .private
         headTexture = device.makeTexture(descriptor: head)
         if samples > 1 {
-            let ms = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.pixelFormat, width: width, height: height, mipmapped: false)
+            let ms = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: IronGiantPipelines.pixelFormat, width: width, height: height, mipmapped: false)
             ms.textureType = .type2DMultisample
             ms.sampleCount = samples
             ms.usage = .renderTarget
@@ -467,7 +503,7 @@ final class IronGiantRenderer {
         } else {
             msaaTexture = nil
         }
-        let depth = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.depthFormat, width: width, height: height, mipmapped: false)
+        let depth = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: IronGiantPipelines.depthFormat, width: width, height: height, mipmapped: false)
         depth.textureType = samples > 1 ? .type2DMultisample : .type2D
         depth.sampleCount = samples
         depth.usage = .renderTarget

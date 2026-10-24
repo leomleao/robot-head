@@ -1,0 +1,162 @@
+[
+  {
+    "file" : "state-idle.png",
+    "largePercent" : 0.87,
+    "mean" : 1.04
+  },
+  {
+    "file" : "state-thinking.png",
+    "largePercent" : 0.80000000000000004,
+    "mean" : 0.93999999999999995
+  },
+  {
+    "file" : "state-searching.png",
+    "largePercent" : 0.75,
+    "mean" : 0.90000000000000002
+  },
+  {
+    "file" : "state-listening.png",
+    "largePercent" : 0.89000000000000001,
+    "mean" : 1.0700000000000001
+  },
+  {
+    "file" : "state-speaking.png",
+    "largePercent" : 0.77000000000000002,
+    "mean" : 1.0600000000000001
+  },
+  {
+    "file" : "state-working.png",
+    "largePercent" : 0.90000000000000002,
+    "mean" : 1.05
+  },
+  {
+    "file" : "state-happy.png",
+    "largePercent" : 0.92000000000000004,
+    "mean" : 0.94999999999999996
+  },
+  {
+    "file" : "state-error.png",
+    "largePercent" : 0.84999999999999998,
+    "mean" : 0.95999999999999996
+  },
+  {
+    "file" : "state-sleeping.png",
+    "largePercent" : 0.59999999999999998,
+    "mean" : 0.84999999999999998
+  },
+  {
+    "file" : "expression-neutral.png",
+    "largePercent" : 0.87,
+    "mean" : 1.04
+  },
+  {
+    "file" : "expression-curious.png",
+    "largePercent" : 0.92000000000000004,
+    "mean" : 0.97999999999999998
+  },
+  {
+    "file" : "expression-happy.png",
+    "largePercent" : 0.85999999999999999,
+    "mean" : 0.97999999999999998
+  },
+  {
+    "file" : "expression-joyful.png",
+    "largePercent" : 0.88,
+    "mean" : 0.93999999999999995
+  },
+  {
+    "file" : "expression-sad.png",
+    "largePercent" : 0.72999999999999998,
+    "mean" : 0.92000000000000004
+  },
+  {
+    "file" : "expression-sheepish.png",
+    "largePercent" : 0.81999999999999995,
+    "mean" : 0.95999999999999996
+  },
+  {
+    "file" : "expression-sleepy.png",
+    "largePercent" : 0.77000000000000002,
+    "mean" : 0.92000000000000004
+  },
+  {
+    "file" : "expression-suspicious.png",
+    "largePercent" : 0.84999999999999998,
+    "mean" : 1.01
+  },
+  {
+    "file" : "expression-content.png",
+    "largePercent" : 0.82999999999999996,
+    "mean" : 0.93999999999999995
+  },
+  {
+    "file" : "expression-surprised.png",
+    "largePercent" : 0.92000000000000004,
+    "mean" : 0.93999999999999995
+  },
+  {
+    "file" : "expression-afraid.png",
+    "largePercent" : 0.88,
+    "mean" : 0.98999999999999999
+  },
+  {
+    "file" : "expression-determined.png",
+    "largePercent" : 0.80000000000000004,
+    "mean" : 0.98999999999999999
+  },
+  {
+    "file" : "expression-angry.png",
+    "largePercent" : 0.83999999999999997,
+    "mean" : 0.95999999999999996
+  },
+  {
+    "file" : "expression-attack.png",
+    "largePercent" : 0.76000000000000001,
+    "mean" : 0.92000000000000004
+  },
+  {
+    "file" : "expression-defense.png",
+    "largePercent" : 0.85999999999999999,
+    "mean" : 0.95999999999999996
+  },
+  {
+    "file" : "expression-peaceful.png",
+    "largePercent" : 1.1200000000000001,
+    "mean" : 1.1799999999999999
+  },
+  {
+    "file" : "expression-asleep.png",
+    "largePercent" : 0.69999999999999996,
+    "mean" : 0.85999999999999999
+  },
+  {
+    "file" : "small-idle.png",
+    "largePercent" : 1.1100000000000001,
+    "mean" : 1.4299999999999999
+  },
+  {
+    "file" : "small-happy.png",
+    "largePercent" : 1,
+    "mean" : 1.3400000000000001
+  },
+  {
+    "file" : "small-defense.png",
+    "largePercent" : 1.1299999999999999,
+    "mean" : 1.4099999999999999
+  },
+  {
+    "file" : "small-asleep.png",
+    "largePercent" : 0.93000000000000005,
+    "mean" : 1.22
+  },
+  {
+    "file" : "colors-rust-moonlight.png",
+    "largePercent" : 1.51,
+    "mean" : 1.1499999999999999
+  },
+  {
+    "file" : "floor-shadow-off.png",
+    "largePercent" : 0.88,
+    "mean" : 1.03
+  }
+]

@@ -20,7 +20,7 @@ let package = Package(
         .target(name: "IronGiant", dependencies: ["CharacterKit"]),
         .executableTarget(name: "RobotPlayground", dependencies: ["CharacterKit", "IronGiant"]),
         .testTarget(name: "CharacterKitTests", dependencies: ["CharacterKit"]),
-        .testTarget(name: "IronGiantTests", dependencies: ["IronGiant", "CharacterKit"], exclude: ["Fixtures"]),
+        .testTarget(name: "IronGiantTests", dependencies: ["IronGiant", "CharacterKit"], exclude: ["Fixtures", "Snapshots"]),
     ],
     swiftLanguageModes: [.v6]
 )
